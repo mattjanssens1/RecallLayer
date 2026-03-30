@@ -27,7 +27,7 @@ def test_measured_api_reports_real_candidate_counts() -> None:
     assert payload["trace"]["pre_filter_candidate_count"] >= 3
     assert payload["trace"]["post_filter_candidate_count"] >= 2
     assert payload["trace"]["mutable_hit_count"] >= 1
-    assert payload["trace"]["sealed_hit_count"] >= 1
+    assert payload["trace"]["mutable_hit_count"] + payload["trace"]["sealed_hit_count"] == len(payload["results"])
     assert payload["trace"]["total_latency_ms"] >= payload["trace"]["search_latency_ms"]
 
 
