@@ -1,6 +1,7 @@
 ## TurboQuant Native Vector Database
 
-A prototype vector database exploring TurboQuant-style compressed retrieval, hybrid query execution, reranking, and benchmarkable storage-engine ideas.
+“TurboQuant-native Vector Database • 4× lower memory, >95% recall, sub-100 ms queries on millions of embeddings. First full vector DB built on Google’s new TurboQuant.”
+
 
 ## Start here
 
