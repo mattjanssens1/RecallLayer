@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
+from turboquant_db.engine.query_plan import QueryPlan, build_query_plan
+from turboquant_db.engine.query_stats import QueryStats, build_query_stats
 from turboquant_db.engine.sealed_segments import SegmentReader
 from turboquant_db.engine.showcase_scored_db import ShowcaseScoredDatabase
 from turboquant_db.filter_eval import build_filter_fn
@@ -33,6 +35,8 @@ class QueryInspection:
 class QueryInspectionResult:
     hits: list[Candidate]
     inspection: QueryInspection
+    plan: QueryPlan
+    stats: QueryStats
 
 
 @dataclass(slots=True)
@@ -93,7 +97,6 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
         shard_id: str = "shard-0",
     ) -> QueryInspectionResult:
         return self._query_inspected(
-            mode="exact-hybrid-engine",
             query_vector=query_vector,
             top_k=top_k,
             filters=filters,
@@ -111,7 +114,6 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
         shard_id: str = "shard-0",
     ) -> QueryInspectionResult:
         return self._query_inspected(
-            mode="compressed-hybrid-engine",
             query_vector=query_vector,
             top_k=top_k,
             filters=filters,
@@ -130,7 +132,6 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
         shard_id: str = "shard-0",
     ) -> QueryInspectionResult:
         return self._query_inspected(
-            mode="compressed-reranked-hybrid-engine",
             query_vector=query_vector,
             top_k=top_k,
             filters=filters,
@@ -143,7 +144,6 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
     def _query_inspected(
         self,
         *,
-        mode: str,
         query_vector: list[float],
         top_k: int,
         filters: dict[str, Any] | None,
@@ -162,6 +162,14 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
         filtered_mutable = [row for row in mutable_rows if filter_fn(row.metadata)]
         filtered_sealed = [row for row in sealed_rows if filter_fn(row.metadata)]
         post_filter_candidate_count = len(filtered_mutable) + len(filtered_sealed)
+
+        plan = build_query_plan(
+            top_k=top_k,
+            approximate=approximate,
+            rerank=rerank,
+            filters_applied=bool(filters),
+            candidate_k=candidate_k,
+        )
 
         search_start = perf_counter()
         if approximate:
@@ -214,12 +222,10 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
         search_latency_ms = (perf_counter() - search_start) * 1000.0
 
         rerank_latency_ms = 0.0
-        rerank_candidate_k = None
         final_hits: list[Candidate]
         if rerank:
-            rerank_candidate_k = max(candidate_k or (top_k * 4), top_k)
             rerank_start = perf_counter()
-            candidate_ids = [candidate.vector_id for candidate in ranked[:rerank_candidate_k]]
+            candidate_ids = [candidate.vector_id for candidate in ranked[: plan.candidate_k or top_k]]
             mutable_lookup = {row.vector_id: row for row in filtered_mutable}
             sealed_lookup = {row.vector_id: row for row in filtered_sealed}
             rescored: list[Candidate] = []
@@ -242,25 +248,29 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
         else:
             final_hits = ranked[:top_k]
 
-        mutable_hit_count = sum(1 for hit in final_hits if source_map.get(hit.vector_id) == "mutable")
-        sealed_hit_count = sum(1 for hit in final_hits if source_map.get(hit.vector_id) == "sealed")
+        stats = build_query_stats(
+            result_ids=[hit.vector_id for hit in final_hits],
+            source_by_vector_id=source_map,
+            pre_filter_candidate_count=pre_filter_candidate_count,
+            post_filter_candidate_count=post_filter_candidate_count,
+        )
         total_latency_ms = (perf_counter() - total_start) * 1000.0
 
         inspection = QueryInspection(
-            mode=mode,
+            mode=f"{plan.mode}-engine",
             top_k=top_k,
-            filters_applied=bool(filters),
+            filters_applied=plan.filters_applied,
             mutable_live_count=len(mutable_rows),
             sealed_segment_count=len(sealed_segment_ids),
             sealed_segment_ids=sealed_segment_ids,
             result_count=len(final_hits),
-            mutable_hit_count=mutable_hit_count,
-            sealed_hit_count=sealed_hit_count,
-            pre_filter_candidate_count=pre_filter_candidate_count,
-            post_filter_candidate_count=post_filter_candidate_count,
-            rerank_candidate_k=rerank_candidate_k,
+            mutable_hit_count=stats.mutable_hit_count,
+            sealed_hit_count=stats.sealed_hit_count,
+            pre_filter_candidate_count=stats.pre_filter_candidate_count,
+            post_filter_candidate_count=stats.post_filter_candidate_count,
+            rerank_candidate_k=plan.candidate_k,
             search_latency_ms=search_latency_ms,
             rerank_latency_ms=rerank_latency_ms,
             total_latency_ms=total_latency_ms,
         )
-        return QueryInspectionResult(hits=final_hits, inspection=inspection)
+        return QueryInspectionResult(hits=final_hits, inspection=inspection, plan=plan, stats=stats)

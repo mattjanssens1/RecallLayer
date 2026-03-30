@@ -24,6 +24,7 @@ class MeasuredQueryTrace(BaseModel):
     rerank_latency_ms: float
     total_latency_ms: float
     notes: dict[str, Any] = Field(default_factory=dict)
+    exported_trace: dict[str, Any] = Field(default_factory=dict)
 
 
 class MeasuredQueryResponse(BaseModel):
