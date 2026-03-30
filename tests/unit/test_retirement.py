@@ -7,6 +7,7 @@ def _manifest(segment_id: str) -> SegmentManifest:
         segment_id=segment_id,
         collection_id="documents",
         shard_id="shard-0",
+        generation=1,
         embedding_version="embed-v1",
         quantizer_version="tq-v0",
     )
