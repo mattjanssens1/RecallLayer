@@ -1,102 +1,55 @@
-# TurboQuant Native Vector Database
+## TurboQuant Native Vector Database
 
-Store billions of embeddings at much lower memory cost while keeping recall high and query latency low.
+A prototype vector database exploring TurboQuant-style compressed retrieval, hybrid query execution, reranking, and benchmarkable storage-engine ideas.
 
-## Vision
+## Start here
 
-This project explores a vector database architecture that uses **TurboQuant-style compressed representations** for first-pass retrieval, followed by **exact or higher-precision reranking** on a much smaller candidate set.
+- `docs/start-here.md`
+- `docs/public-surface.md`
+- `docs/canonical-path.md`
 
-The central idea is simple:
+## Best current surfaces
 
-1. Keep a compact **search representation** of each vector in hot memory.
-2. Use that representation for fast candidate generation.
-3. Rerank a short list using higher-precision vectors.
-4. Support online ingestion without expensive retraining or reindexing.
+### Local development facade
 
-This is designed for large-scale workloads such as:
+- `turboquant_db.showcase.ShowcaseScoredDatabase`
 
-- semantic document retrieval
-- RAG retrieval stores
-- recommendation candidate generation
-- deduplication / near-duplicate search
-- anomaly and fraud neighbor lookups
+### Best API
 
-## Why this project exists
+- `src/turboquant_db/api/app_observed.py`
+- `python scripts/run_observed_api.py`
 
-Modern vector systems hit a familiar wall:
+### Best benchmark scripts
 
-- embeddings grow into the hundreds of millions or billions
-- RAM and GPU memory become the bottleneck
-- exact search is too expensive
-- coarse quantization often hurts recall
+- `python scripts/run_showcase_benchmark.py`
+- `python scripts/run_quantizer_comparison.py`
+- `python scripts/run_extended_benchmark.py`
+- `python scripts/export_showcase_bundle.py`
+- `python scripts/export_quantizer_bundle.py`
+- `python scripts/export_extended_diagnostics.py`
 
-A TurboQuant-inspired design aims to preserve search-relevant geometry while reducing memory pressure enough to keep large indexes hot and fast.
+## What the repository already includes
 
-## Design principles
+- write log, mutable buffer, and sealed segment runtime
+- recovery manager and manifest store
+- exact, compressed, reranked, scored, traced, and observed query paths
+- small and medium synthetic benchmark fixtures
+- Markdown and JSON report exporters
+- unit and integration-style tests
 
-- **Compressed-first retrieval**: use a compact code path for candidate generation.
-- **Precise reranking**: spend exact compute only where it matters.
-- **Online ingestion**: support continuously arriving vectors.
-- **Tiered storage**: hot compressed codes, warmer higher-precision vectors, colder archival originals.
-- **Modular engine**: quantization, ANN retrieval, reranking, and compaction should be separable services.
+## Why this repo stands out
 
-## Repository map
+This repository is not only a design document set. It already provides:
 
-- `docs/architecture.md` - system design and data flow
-- `docs/roadmap.md` - phased implementation plan
+- runnable local examples
+- a public-facing API path
+- benchmark entrypoints
+- diagnostics-oriented outputs
+- a clear canonical path through the codebase
 
-## Initial architecture at a glance
+## Recommended next work
 
-```text
-                +------------------+
-                |  Embed Service   |
-                +------------------+
-                          |
-                          v
-                +------------------+
-                | Quantize Service |
-                +------------------+
-                     |        |
-                     |        +----------------------+
-                     v                               v
-          +----------------------+       +----------------------+
-          | Compressed ANN Index |       | Higher Precision     |
-          |  (hot memory)        |       | Vector Store         |
-          +----------------------+       |  (SSD / object)      |
-                     |                    +----------------------+
-                     v
-               top-N candidates
-                     |
-                     v
-                +------------------+
-                | Rerank Service   |
-                +------------------+
-                          |
-                          v
-                +------------------+
-                | Query Results    |
-                +------------------+
-```
-
-## First concrete milestone
-
-Build a secondary compressed index beside a baseline vector store and evaluate:
-
-- recall@10 / recall@100
-- p95 latency
-- ingestion throughput
-- memory reduction
-- rerank cost per query
-
-## Near-term questions
-
-- What compressed format should be the first implementation target?
-- Should the first retrieval engine be brute-force compressed scan, IVF, or graph ANN?
-- How should metadata filtering interact with compressed retrieval?
-- What benchmark corpus should be the first proof point?
-
-## Status
-
-This repository is currently in **design and prototyping** mode.
-
-The next step is to turn the system design into a concrete package layout and baseline benchmark harness.
+- richer trace metrics in the observed API
+- larger benchmark fixtures
+- more faithful TurboQuant-like quantization variants
+- gradual retirement of thinner legacy surfaces
