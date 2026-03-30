@@ -9,6 +9,7 @@ from turboquant_db.engine.query_stats import QueryStats, build_query_stats
 from turboquant_db.engine.sealed_segments import SegmentReader
 from turboquant_db.engine.showcase_scored_db import ShowcaseScoredDatabase
 from turboquant_db.filter_eval import build_filter_fn
+from turboquant_db.filters import FilterIndexes, FilterPlanner, FilterStrategy, MetadataRow
 from turboquant_db.retrieval.base import Candidate
 
 
@@ -56,6 +57,10 @@ class _SealedRow:
 
 class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
     """Engine-facing facade that computes real hybrid query breakdowns."""
+
+    def __init__(self, *args: Any, filter_planner: FilterPlanner | None = None, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.filter_planner = filter_planner or FilterPlanner()
 
     def _collect_mutable_rows(self) -> list[_MutableRow]:
         rows: list[_MutableRow] = []
@@ -157,6 +162,14 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
 
         mutable_rows = self._collect_mutable_rows()
         sealed_segment_ids, sealed_rows = self._collect_sealed_rows(shard_id=shard_id)
+        indexes = FilterIndexes(
+            [
+                *[MetadataRow(vector_id=row.vector_id, metadata=row.metadata) for row in mutable_rows],
+                *[MetadataRow(vector_id=row.vector_id, metadata=row.metadata) for row in sealed_rows],
+            ]
+        )
+        filter_plan = self.filter_planner.plan(filters=filters or {}, indexes=indexes)
+        restricted_candidate_ids = filter_plan.candidate_ids if filter_plan.strategy == FilterStrategy.PRE_FILTER else None
 
         pre_filter_candidate_count = len(mutable_rows) + len(sealed_rows)
         filtered_mutable = [row for row in mutable_rows if filter_fn(row.metadata)]
@@ -168,44 +181,41 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
             approximate=approximate,
             rerank=rerank,
             filters_applied=bool(filters),
+            filter_strategy=filter_plan.strategy.value,
             candidate_k=candidate_k,
         )
 
         search_start = perf_counter()
+        mutable_search_filter = None if restricted_candidate_ids is not None else filter_fn
+        sealed_search_filters = None if restricted_candidate_ids is not None else filters
         if approximate:
-            mutable_candidates = [
-                Candidate(
-                    vector_id=row.vector_id,
-                    score=float(self.quantizer.approx_score(query_vector, self.quantizer.encode(row.embedding))),
-                    metadata=row.metadata,
-                )
-                for row in filtered_mutable
-            ]
-            sealed_candidates = [
-                Candidate(
-                    vector_id=row.vector_id,
-                    score=float(self.quantizer.approx_score(query_vector, row.encoded)),
-                    metadata=row.metadata,
-                )
-                for row in filtered_sealed
-            ]
+            mutable_candidates = self.query_executor.search_compressed(
+                query_vector,
+                top_k=len(mutable_rows),
+                filter_fn=mutable_search_filter,
+                candidate_ids=restricted_candidate_ids,
+            )
+            sealed_candidates = self._query_sealed_compressed(
+                query_vector,
+                top_k=len(sealed_rows),
+                filters=sealed_search_filters,
+                shard_id=shard_id,
+                candidate_ids=restricted_candidate_ids,
+            )
         else:
-            mutable_candidates = [
-                Candidate(
-                    vector_id=row.vector_id,
-                    score=float(sum(a * b for a, b in zip(query_vector, row.embedding))),
-                    metadata=row.metadata,
-                )
-                for row in filtered_mutable
-            ]
-            sealed_candidates = [
-                Candidate(
-                    vector_id=row.vector_id,
-                    score=float(sum(a * b for a, b in zip(query_vector, row.reconstructed))),
-                    metadata=row.metadata,
-                )
-                for row in filtered_sealed
-            ]
+            mutable_candidates = self.query_executor.search_exact(
+                query_vector,
+                top_k=len(mutable_rows),
+                filter_fn=mutable_search_filter,
+                candidate_ids=restricted_candidate_ids,
+            )
+            sealed_candidates = self._query_sealed_exactish(
+                query_vector,
+                top_k=len(sealed_rows),
+                filters=sealed_search_filters,
+                shard_id=shard_id,
+                candidate_ids=restricted_candidate_ids,
+            )
 
         merged: dict[str, Candidate] = {}
         source_map: dict[str, str] = {}
@@ -225,25 +235,28 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
         final_hits: list[Candidate]
         if rerank:
             rerank_start = perf_counter()
-            candidate_ids = [candidate.vector_id for candidate in ranked[: plan.candidate_k or top_k]]
-            mutable_lookup = {row.vector_id: row for row in filtered_mutable}
-            sealed_lookup = {row.vector_id: row for row in filtered_sealed}
-            rescored: list[Candidate] = []
-            for vector_id in candidate_ids:
-                mutable_row = mutable_lookup.get(vector_id)
-                if mutable_row is not None:
-                    score = float(sum(a * b for a, b in zip(query_vector, mutable_row.embedding)))
-                    rescored.append(Candidate(vector_id=vector_id, score=score, metadata=mutable_row.metadata))
-                    source_map[vector_id] = "mutable"
-                    continue
-                sealed_row = sealed_lookup.get(vector_id)
-                if sealed_row is None:
-                    continue
-                score = float(sum(a * b for a, b in zip(query_vector, sealed_row.reconstructed)))
-                rescored.append(Candidate(vector_id=vector_id, score=score, metadata=sealed_row.metadata))
-                source_map[vector_id] = "sealed"
-            rescored.sort(key=lambda item: item.score, reverse=True)
-            final_hits = rescored[:top_k]
+            rerank_candidate_ids = {candidate.vector_id for candidate in ranked[: plan.candidate_k or top_k]}
+            rescored_mutable = self.query_executor.search_exact(
+                query_vector,
+                top_k=len(rerank_candidate_ids),
+                candidate_ids=rerank_candidate_ids,
+            )
+            rescored_sealed = self._query_sealed_exactish(
+                query_vector,
+                top_k=len(rerank_candidate_ids),
+                shard_id=shard_id,
+                candidate_ids=rerank_candidate_ids,
+            )
+            rescored_merged: dict[str, Candidate] = {}
+            for candidate in rescored_sealed:
+                rescored_merged[candidate.vector_id] = candidate
+                source_map[candidate.vector_id] = "sealed"
+            for candidate in rescored_mutable:
+                current = rescored_merged.get(candidate.vector_id)
+                if current is None or candidate.score >= current.score:
+                    rescored_merged[candidate.vector_id] = candidate
+                    source_map[candidate.vector_id] = "mutable"
+            final_hits = sorted(rescored_merged.values(), key=lambda item: item.score, reverse=True)[:top_k]
             rerank_latency_ms = (perf_counter() - rerank_start) * 1000.0
         else:
             final_hits = ranked[:top_k]

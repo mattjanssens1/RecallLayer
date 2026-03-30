@@ -26,12 +26,18 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         top_k: int,
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
+        candidate_ids: set[str] | None = None,
     ) -> list[Candidate]:
+        if candidate_ids is not None and not candidate_ids:
+            return []
+
         filter_fn = build_filter_fn(filters or {})
         candidates: list[Candidate] = []
         for path in self._segment_paths(shard_id=shard_id):
             reader = SegmentReader(path)
             for indexed in reader.iter_indexed_vectors():
+                if candidate_ids is not None and indexed.vector_id not in candidate_ids:
+                    continue
                 if not filter_fn(indexed.metadata):
                     continue
                 reconstructed = indexed.encoded.codes.astype("float32") * indexed.encoded.scale
@@ -47,12 +53,18 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         top_k: int,
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
+        candidate_ids: set[str] | None = None,
     ) -> list[Candidate]:
+        if candidate_ids is not None and not candidate_ids:
+            return []
+
         filter_fn = build_filter_fn(filters or {})
         candidates: list[Candidate] = []
         for path in self._segment_paths(shard_id=shard_id):
             reader = SegmentReader(path)
             for indexed in reader.iter_indexed_vectors():
+                if candidate_ids is not None and indexed.vector_id not in candidate_ids:
+                    continue
                 if not filter_fn(indexed.metadata):
                     continue
                 score = self.quantizer.approx_score(query_vector=query_vector, encoded=indexed.encoded)
