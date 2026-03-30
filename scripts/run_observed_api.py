@@ -1,7 +1,7 @@
-"""Compatibility runner for the legacy observed API name.
+"""Soft-deprecated compatibility runner for the legacy observed API name.
 
 Prefer ``scripts/run_best_api.py`` for new usage. This runner stays in place so
-older notes and commands continue to work.
+older notes and commands continue to work during the deprecation window.
 """
 
 from turboquant_db.api.app_best import app
