@@ -8,43 +8,44 @@ Use:
 
 - `turboquant_db.showcase.ShowcaseScoredDatabase`
 
-This is the current best local development surface because it supports:
+This is still the clearest local development surface for:
 
 - hybrid queries over mutable and sealed data
 - scored hits with metadata
 - reranked compressed queries
-- benchmark-friendly behavior
+- benchmark-oriented local runs
 
 ## Best API surface
 
 Use:
 
-- `src/turboquant_db/api/showcase_server_traced.py`
+- `src/turboquant_db/api/app_best.py`
+- `python scripts/run_best_api.py`
 
-This is the current best public-facing API because it returns:
-
-- scored results
-- metadata
-- trace diagnostics
-- exact, compressed, and reranked query modes
+Treat narrower API variants as experimental unless a newer doc explicitly blesses them.
 
 ## Best benchmark entrypoints
 
 Use:
 
-- `scripts/run_showcase_benchmark.py`
-- `scripts/run_quantizer_comparison.py`
-- `scripts/run_extended_benchmark.py`
-- `scripts/export_benchmark_diagnostics.py`
+- `python scripts/run_canonical_flow.py`
+- `python scripts/export_full_ladder.py`
+- `python scripts/export_proof_pack.py`
+
+Use the proof-pack export when you want one compact, reproducible benchmark artifact.
 
 ## Best example
 
 Use:
 
-- `examples/quickstart.py`
+- `python examples/quickstart.py`
+
+## Read these next
+
+- `docs/current-surfaces.md`
+- `docs/repository-status.md`
+- `docs/benchmark-proof-pack.md`
 
 ## Why this file exists
 
-There are a few thinner or earlier modules in the repository from the project’s evolution.
-
-This file marks the current highest-signal path so contributors and visitors do not have to guess which route is the most representative.
+Older modules and docs still exist from the repo's evolution. This file marks the current highest-signal path so contributors and visitors do not have to guess which route is most representative.

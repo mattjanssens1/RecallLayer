@@ -5,12 +5,14 @@ This file lists the current best surfaces to use when you want the repository to
 ## Best API to run
 
 ```bash
-python scripts/run_observed_api.py
+python scripts/run_best_api.py
 ```
 
-This runs the current best public-facing API:
+This runs the current best public-facing API entrypoint:
 
-- `src/turboquant_db/api/app_observed.py`
+- `src/turboquant_db/api/app_best.py`
+
+Treat other API variants as narrower or more experimental unless a newer doc says otherwise.
 
 ## Best local code API
 
@@ -18,26 +20,25 @@ Use:
 
 - `turboquant_db.showcase.ShowcaseScoredDatabase`
 
-## Best benchmark scripts
+## Best benchmark commands
 
 Use these in order:
 
 ```bash
-python scripts/run_showcase_benchmark.py
-python scripts/run_quantizer_comparison.py
-python scripts/run_extended_benchmark.py
-python scripts/export_showcase_bundle.py
-python scripts/export_quantizer_bundle.py
-python scripts/export_extended_diagnostics.py
+python scripts/run_canonical_flow.py
+python scripts/export_full_ladder.py
+python scripts/export_proof_pack.py
 ```
+
+Use the proof-pack export when you want one compact, reproducible artifact instead of the broader report bundle.
 
 ## Best docs to read next
 
-- `docs/start-here.md`
-- `docs/canonical-path.md`
-- `docs/benchmark-guide.md`
+- `docs/current-surfaces.md`
+- `docs/repository-status.md`
+- `docs/benchmark-proof-pack.md`
 - `docs/legacy-paths.md`
 
 ## Why this exists
 
-The repo now has enough working surfaces that a concise map is more useful than another architecture essay.
+The repo has multiple runnable surfaces from its evolution. This file is meant to point readers at the current best entrypoints without making them reverse-engineer the history.
