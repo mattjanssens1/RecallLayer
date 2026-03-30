@@ -16,8 +16,8 @@ A prototype vector database exploring TurboQuant-style compressed retrieval, hyb
 
 ### Best API
 
-- `src/turboquant_db/api/app_observed.py`
-- `python scripts/run_observed_api.py`
+- `src/turboquant_db/api/app_best.py`
+- `python scripts/run_best_api.py`
 
 ### Best benchmark scripts
 
