@@ -22,7 +22,7 @@ Use:
 - `src/turboquant_db/api/app_best.py`
 - `python scripts/run_best_api.py`
 
-Use `app_observed.py` and `run_observed_api.py` only as compatibility aliases for older notes and scripts.
+Use `app_observed.py` and `run_observed_api.py` only as soft-deprecated compatibility aliases for older notes and scripts.
 
 Use `app_inspected.py` and `app_measured.py` when you explicitly want narrower experimental inspection surfaces.
 
@@ -59,6 +59,7 @@ Use:
 ## Read these next
 
 - `docs/api-surface-policy.md`
+- `docs/deprecations.md`
 - `docs/repository-status.md`
 - `docs/benchmark-proof-pack.md`
 

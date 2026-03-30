@@ -11,14 +11,14 @@ Use:
 
 This is the default public-facing API path for new usage.
 
-## Compatibility alias
+## Compatibility alias (soft-deprecated)
 
 Use only when older notes or scripts already point at it:
 
 - `src/turboquant_db/api/app_observed.py`
 - `python scripts/run_observed_api.py`
 
-These names currently exist for compatibility and intentionally resolve to the same surface as `app_best.py`.
+These names intentionally resolve to the same surface as `app_best.py`. They remain available during a soft-deprecation window, but new docs, examples, and commands should use the canonical `best` names instead.
 
 ## Experimental inspection surfaces
 
@@ -27,7 +27,7 @@ Use when you specifically want richer or more specialized diagnostics:
 - `src/turboquant_db/api/app_inspected.py`
 - `src/turboquant_db/api/app_measured.py`
 
-These are useful during engine development, but they are not the default public entrypoint.
+These are useful during engine development, but they are not the default public entrypoint and may change faster than the canonical surface.
 
 ## Internal server modules
 
