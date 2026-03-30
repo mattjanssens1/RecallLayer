@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from turboquant_db.api.measured_schemas import MeasuredQueryResponse, MeasuredQueryTrace
 from turboquant_db.api.schemas import QueryHit, QueryRequest, UpsertRequest
 from turboquant_db.engine.inspected_db import InspectedShowcaseDatabase
+from turboquant_db.engine.query_trace_export import build_query_trace_payload
 
 
 def create_measured_showcase_app() -> FastAPI:
@@ -47,6 +48,12 @@ def create_measured_showcase_app() -> FastAPI:
             )
 
         inspection = result.inspection
+        exported_trace = build_query_trace_payload(
+            inspection=inspection,
+            plan=result.plan,
+            stats=result.stats,
+            notes={"collection_id": db.collection_id},
+        )
         trace = MeasuredQueryTrace(
             mode=inspection.mode,
             top_k=inspection.top_k,
@@ -64,6 +71,7 @@ def create_measured_showcase_app() -> FastAPI:
             rerank_latency_ms=inspection.rerank_latency_ms,
             total_latency_ms=inspection.total_latency_ms,
             notes={"collection_id": db.collection_id},
+            exported_trace=exported_trace,
         )
         return MeasuredQueryResponse(
             results=[QueryHit(vector_id=hit.vector_id, score=hit.score, metadata=hit.metadata) for hit in result.hits],

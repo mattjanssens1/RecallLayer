@@ -28,6 +28,10 @@ def test_measured_api_reports_real_candidate_counts() -> None:
     assert payload["trace"]["post_filter_candidate_count"] >= 2
     assert payload["trace"]["mutable_hit_count"] >= 1
     assert payload["trace"]["mutable_hit_count"] + payload["trace"]["sealed_hit_count"] == len(payload["results"])
+    assert payload["trace"]["exported_trace"]["inspection"]["mode"] == payload["trace"]["mode"]
+    assert payload["trace"]["exported_trace"]["plan"]["mode"] == "compressed-reranked-hybrid"
+    assert payload["trace"]["exported_trace"]["stats"]["mutable_hit_count"] == payload["trace"]["mutable_hit_count"]
+    assert payload["trace"]["exported_trace"]["notes"]["collection_id"] == "showcase-measured"
     assert payload["trace"]["total_latency_ms"] >= payload["trace"]["search_latency_ms"]
 
 
@@ -44,3 +48,4 @@ def test_measured_api_exact_mode_has_no_rerank_latency() -> None:
     assert payload["mode"] == "exact-hybrid-engine"
     assert payload["trace"]["rerank_candidate_k"] is None
     assert payload["trace"]["rerank_latency_ms"] == 0.0
+    assert payload["trace"]["exported_trace"]["plan"]["candidate_k"] is None
