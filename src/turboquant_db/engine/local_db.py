@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from turboquant_db.engine.manifest_store import ManifestStore
+from turboquant_db.engine.mutable_buffer import MutableBuffer
+from turboquant_db.engine.query_executor import QueryExecutor
+from turboquant_db.engine.recovery_manager import RecoveryManager
+from turboquant_db.engine.sealed_segments import LocalSegmentStore, SegmentBuilder
+from turboquant_db.engine.write_log import WriteLog
+from turboquant_db.model.manifest import ShardManifest
+from turboquant_db.quantization.base import Quantizer
+from turboquant_db.quantization.scalar import ScalarQuantizer
+
+
+class LocalVectorDatabase:
+    """A tiny single-node database facade for local development."""
+
+    def __init__(
+        self,
+        *,
+        collection_id: str,
+        root_dir: str | Path,
+        embedding_version: str = "embed-v1",
+        quantizer_version: str = "tq-v0",
+        quantizer: Quantizer | None = None,
+    ) -> None:
+        self.collection_id = collection_id
+        self.root_dir = Path(root_dir)
+        self.root_dir.mkdir(parents=True, exist_ok=True)
+        self.embedding_version = embedding_version
+        self.quantizer_version = quantizer_version
+        self.quantizer = quantizer or ScalarQuantizer()
+
+        self.mutable_buffer = MutableBuffer(collection_id=collection_id)
+        self.write_log = WriteLog(self.root_dir / collection_id / "write_log.jsonl")
+        self.manifest_store = ManifestStore(self.root_dir / "manifests")
+        self.segment_store = LocalSegmentStore(self.root_dir / "segments")
+        self.segment_builder = SegmentBuilder(self.root_dir / "segments", quantizer=self.quantizer)
+        self.recovery_manager = RecoveryManager(write_log=self.write_log, mutable_buffer=self.mutable_buffer)
+        self.query_executor = QueryExecutor(mutable_buffer=self.mutable_buffer, quantizer=self.quantizer)
+
+        self._write_epoch = self.mutable_buffer.watermark()
+
+    def upsert(self, *, vector_id: str, embedding: list[float], metadata: dict[str, object] | None = None) -> int:
+        self._write_epoch += 1
+        self.write_log.append_upsert(
+            collection_id=self.collection_id,
+            vector_id=vector_id,
+            write_epoch=self._write_epoch,
+            embedding=embedding,
+            metadata=metadata or {},
+        )
+        self.mutable_buffer.upsert(
+            vector_id=vector_id,
+            embedding=embedding,
+            metadata=metadata or {},
+            embedding_version=self.embedding_version,
+            quantizer_version=self.quantizer_version,
+            write_epoch=self._write_epoch,
+        )
+        return self._write_epoch
+
+    def delete(self, *, vector_id: str) -> int:
+        self._write_epoch += 1
+        self.write_log.append_delete(
+            collection_id=self.collection_id,
+            vector_id=vector_id,
+            write_epoch=self._write_epoch,
+        )
+        self.mutable_buffer.delete(
+            vector_id=vector_id,
+            embedding_version=self.embedding_version,
+            quantizer_version=self.quantizer_version,
+            write_epoch=self._write_epoch,
+        )
+        return self._write_epoch
+
+    def query_exact(self, query_vector: list[float], *, top_k: int) -> list[str]:
+        return [item.vector_id for item in self.query_executor.search_exact(query_vector, top_k=top_k)]
+
+    def query_compressed(self, query_vector: list[float], *, top_k: int) -> list[str]:
+        return [item.vector_id for item in self.query_executor.search_compressed(query_vector, top_k=top_k)]
+
+    def flush_mutable(self, *, shard_id: str = "shard-0", segment_id: str = "seg-0", generation: int = 1) -> ShardManifest:
+        entries = self.mutable_buffer.live_entries()
+        manifest, _paths = self.segment_builder.build(
+            collection_id=self.collection_id,
+            shard_id=shard_id,
+            segment_id=segment_id,
+            generation=generation,
+            embedding_version=self.embedding_version,
+            quantizer_version=self.quantizer_version,
+            entries=entries,
+        )
+        shard_manifest = ShardManifest(
+            shard_id=shard_id,
+            collection_id=self.collection_id,
+            active_segment_ids=[manifest.segment_id],
+        )
+        self.manifest_store.save(shard_manifest)
+        return shard_manifest
+
+    def recover(self) -> int:
+        applied = self.recovery_manager.replay(
+            embedding_version=self.embedding_version,
+            quantizer_version=self.quantizer_version,
+        )
+        self._write_epoch = self.mutable_buffer.watermark()
+        return applied
