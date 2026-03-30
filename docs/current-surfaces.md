@@ -22,7 +22,9 @@ Use:
 - `src/turboquant_db/api/app_best.py`
 - `python scripts/run_best_api.py`
 
-Treat other API variants as narrower or more experimental unless a newer doc says otherwise.
+Use `app_observed.py` and `run_observed_api.py` only as compatibility aliases for older notes and scripts.
+
+Use `app_inspected.py` and `app_measured.py` when you explicitly want narrower experimental inspection surfaces.
 
 ## Best benchmark flow
 
@@ -40,12 +42,26 @@ Use:
 
 This is the broadest export path for the current benchmark ladder.
 
+## Best compact proof artifact
+
+Use:
+
+- `python scripts/export_proof_pack.py`
+
+Use this when you want one small, reproducible benchmark artifact.
+
 ## Best example
 
 Use:
 
 - `python examples/quickstart.py`
 
+## Read these next
+
+- `docs/api-surface-policy.md`
+- `docs/repository-status.md`
+- `docs/benchmark-proof-pack.md`
+
 ## Why this file exists
 
-Some older docs point at earlier API surfaces from the repo's evolution. This file is meant to be the singular "start here" map until those older docs are tightened.
+Some older docs and surface names still exist from the repo's evolution. This file is meant to be the singular "start here" map until a future consolidation pass removes more aliases.
