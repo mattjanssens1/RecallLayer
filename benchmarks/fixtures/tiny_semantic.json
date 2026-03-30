@@ -1,0 +1,14 @@
+{
+  "name": "tiny-semantic",
+  "items": [
+    {"vector_id": "doc-1", "embedding": [1.0, 0.0], "metadata": {"region": "us", "topic": "payments"}},
+    {"vector_id": "doc-2", "embedding": [0.0, 1.0], "metadata": {"region": "ca", "topic": "risk"}},
+    {"vector_id": "doc-3", "embedding": [0.8, 0.2], "metadata": {"region": "us", "topic": "payments"}},
+    {"vector_id": "doc-4", "embedding": [0.2, 0.8], "metadata": {"region": "ca", "topic": "risk"}}
+  ],
+  "queries": [
+    [0.95, 0.05],
+    [0.05, 0.95],
+    [0.7, 0.3]
+  ]
+}
