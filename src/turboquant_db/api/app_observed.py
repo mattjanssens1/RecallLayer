@@ -1,6 +1,9 @@
-from turboquant_db.api.showcase_server_observed_plus import app, create_observed_plus_showcase_app
+"""Compatibility alias for the current best API surface.
 
-create_app = create_observed_plus_showcase_app
+Use ``app_best.py`` for new entrypoints. This module remains so older scripts and
+links can keep working while both names still resolve to the same surface.
+"""
+
+from turboquant_db.api.app_best import app, create_app
 
 __all__ = ["app", "create_app"]
-
