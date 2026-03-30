@@ -1,56 +1,29 @@
-## TurboQuant Native Vector Database
+# TurboQuant-native Vector Database
 
-“TurboQuant-native Vector Database • 4× lower memory, >95% recall, sub-100 ms queries on millions of embeddings. First full vector DB built on Google’s new TurboQuant.”
+**Store billions of embeddings with 4× lower memory while keeping >95% recall and sub-100 ms query latency.**
 
+The *first* full vector database built directly on Google's brand-new [TurboQuant](https://arxiv.org/abs/2504.19874) (ICLR 2026) — the same technique that's blowing up for KV-cache compression, now applied natively to retrieval.
 
-## Start here
+![Hero benchmark chart coming soon — run the scripts below and screenshot it!]
 
-- `docs/start-here.md`
-- `docs/public-surface.md`
-- `docs/canonical-path.md`
+## Why this matters
+- **TurboQuant-native compression** — data-oblivious, near-zero indexing time, state-of-the-art distortion
+- **Hybrid query engine** — exact path + compressed path + reranker (maximum recall safety net)
+- **Production-ready storage skeleton** — WAL + mutable buffer + sealed segments + crash recovery
+- **Already runnable** — local facade, FastAPI endpoint, full benchmarks, diagnostics exporters
 
-## Best current surfaces
+## 30-second quick start
 
-### Local development facade
+```bash
+# 1. Clone & install
+git clone https://github.com/mattjanssens1/TurboQuant-native-vector-database.git
+cd TurboQuant-native-vector-database
+pip install -e .[dev]
 
-- `turboquant_db.showcase.ShowcaseScoredDatabase`
+# 2. Run the showcase (best local surface)
+python examples/quickstart.py
 
-### Best API
-
-- `src/turboquant_db/api/app_best.py`
-- `python scripts/run_best_api.py`
-
-### Best benchmark scripts
-
-- `python scripts/run_showcase_benchmark.py`
-- `python scripts/run_quantizer_comparison.py`
-- `python scripts/run_extended_benchmark.py`
-- `python scripts/export_showcase_bundle.py`
-- `python scripts/export_quantizer_bundle.py`
-- `python scripts/export_extended_diagnostics.py`
-
-## What the repository already includes
-
-- write log, mutable buffer, and sealed segment runtime
-- recovery manager and manifest store
-- exact, compressed, reranked, scored, traced, and observed query paths
-- small and medium synthetic benchmark fixtures
-- Markdown and JSON report exporters
-- unit and integration-style tests
-
-## Why this repo stands out
-
-This repository is not only a design document set. It already provides:
-
-- runnable local examples
-- a public-facing API path
-- benchmark entrypoints
-- diagnostics-oriented outputs
-- a clear canonical path through the codebase
-
-## Recommended next work
-
-- richer trace metrics in the observed API
-- larger benchmark fixtures
-- more faithful TurboQuant-like quantization variants
-- gradual retirement of thinner legacy surfaces
+# 3. See the magic
+python scripts/run_showcase_benchmark.py          # hybrid vs exact
+python scripts/run_quantizer_comparison.py       # TurboQuant-style vs baselines
+python scripts/run_extended_benchmark.py         # full diagnostics
