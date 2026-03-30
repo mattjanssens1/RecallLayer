@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from turboquant_db.engine.hybrid_core import HybridSearchInputs, run_hybrid_search
 from turboquant_db.engine.local_db import LocalVectorDatabase
 from turboquant_db.engine.sealed_segments import SegmentReader
 from turboquant_db.filter_eval import build_filter_fn
@@ -80,16 +81,24 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
     ) -> list[str]:
-        filter_fn = build_filter_fn(filters or {})
-        mutable = self.query_executor.search_exact(query_vector, top_k=top_k, filter_fn=filter_fn)
-        sealed = self._query_sealed_exactish(query_vector, top_k=top_k, filters=filters, shard_id=shard_id)
-        merged: dict[str, Candidate] = {}
-        for candidate in [*mutable, *sealed]:
-            current = merged.get(candidate.vector_id)
-            if current is None or candidate.score > current.score:
-                merged[candidate.vector_id] = candidate
-        ranked = sorted(merged.values(), key=lambda item: item.score, reverse=True)
-        return [item.vector_id for item in ranked[:top_k]]
+        result = run_hybrid_search(
+            inputs=HybridSearchInputs(query_vector=query_vector, top_k=top_k, filters=filters),
+            mutable_search=lambda vector, limit, filter_fn, candidate_ids: self.query_executor.search_exact(
+                vector,
+                top_k=limit,
+                filter_fn=filter_fn,
+                candidate_ids=candidate_ids,
+            ),
+            sealed_search=lambda vector, limit, sealed_filters, candidate_ids: self._query_sealed_exactish(
+                vector,
+                top_k=limit,
+                filters=sealed_filters,
+                shard_id=shard_id,
+                candidate_ids=candidate_ids,
+            ),
+            mode="exact",
+        )
+        return [item.vector_id for item in result.ranked_hits]
 
     def query_compressed_hybrid(
         self,
@@ -99,13 +108,21 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
     ) -> list[str]:
-        filter_fn = build_filter_fn(filters or {})
-        mutable = self.query_executor.search_compressed(query_vector, top_k=top_k, filter_fn=filter_fn)
-        sealed = self._query_sealed_compressed(query_vector, top_k=top_k, filters=filters, shard_id=shard_id)
-        merged: dict[str, Candidate] = {}
-        for candidate in [*mutable, *sealed]:
-            current = merged.get(candidate.vector_id)
-            if current is None or candidate.score > current.score:
-                merged[candidate.vector_id] = candidate
-        ranked = sorted(merged.values(), key=lambda item: item.score, reverse=True)
-        return [item.vector_id for item in ranked[:top_k]]
+        result = run_hybrid_search(
+            inputs=HybridSearchInputs(query_vector=query_vector, top_k=top_k, filters=filters),
+            mutable_search=lambda vector, limit, filter_fn, candidate_ids: self.query_executor.search_compressed(
+                vector,
+                top_k=limit,
+                filter_fn=filter_fn,
+                candidate_ids=candidate_ids,
+            ),
+            sealed_search=lambda vector, limit, sealed_filters, candidate_ids: self._query_sealed_compressed(
+                vector,
+                top_k=limit,
+                filters=sealed_filters,
+                shard_id=shard_id,
+                candidate_ids=candidate_ids,
+            ),
+            mode="compressed",
+        )
+        return [item.vector_id for item in result.ranked_hits]

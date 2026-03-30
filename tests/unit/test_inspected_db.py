@@ -27,6 +27,10 @@ def test_inspected_db_returns_real_counts_for_mixed_mutable_and_sealed_hits(tmp_
     assert result.stats.sealed_hit_count == result.inspection.sealed_hit_count
     assert result.stats.mutable_hit_count + result.stats.sealed_hit_count == len(result.hits)
     assert result.inspection.total_latency_ms >= result.inspection.search_latency_ms
+    assert result.inspection.timing_breakdown.mutable_search_latency_ms >= 0.0
+    assert result.inspection.timing_breakdown.sealed_search_latency_ms >= 0.0
+    assert result.inspection.timing_breakdown.merge_latency_ms >= 0.0
+    assert result.inspection.timing_breakdown.rerank_latency_ms >= 0.0
 
 
 def test_inspected_db_exact_path_reports_zero_rerank_latency(tmp_path: Path) -> None:

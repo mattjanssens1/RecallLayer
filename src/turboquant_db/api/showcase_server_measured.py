@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from turboquant_db.api.measured_schemas import MeasuredQueryResponse, MeasuredQueryTrace
+from turboquant_db.api.measured_schemas import MeasuredQueryResponse, MeasuredQueryTrace, MeasuredTimingBreakdown
 from turboquant_db.api.schemas import QueryHit, QueryRequest, UpsertRequest
 from turboquant_db.engine.inspected_db import InspectedShowcaseDatabase
 from turboquant_db.engine.query_trace_export import build_query_trace_payload
@@ -70,6 +70,7 @@ def create_measured_showcase_app() -> FastAPI:
             search_latency_ms=inspection.search_latency_ms,
             rerank_latency_ms=inspection.rerank_latency_ms,
             total_latency_ms=inspection.total_latency_ms,
+            timing_breakdown=MeasuredTimingBreakdown(**exported_trace["inspection"]["timing_breakdown"]),
             notes={"collection_id": db.collection_id},
             exported_trace=exported_trace,
         )

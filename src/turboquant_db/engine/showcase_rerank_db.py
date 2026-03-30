@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from turboquant_db.engine.hybrid_core import rerank_hybrid_candidates
 from turboquant_db.engine.showcase_db import ShowcaseLocalDatabase
 from turboquant_db.engine.sealed_segments import SegmentReader
 
@@ -34,20 +35,22 @@ class ShowcaseRerankDatabase(ShowcaseLocalDatabase):
             filters=filters,
             shard_id=shard_id,
         )
-
-        sealed_vectors = self._sealed_vector_map(shard_id=shard_id)
-        scored: list[tuple[float, str]] = []
-        for vector_id in candidate_ids:
-            mutable_entry = self.mutable_buffer.get(vector_id)
-            if mutable_entry is not None and not mutable_entry.record.is_deleted and mutable_entry.embedding is not None:
-                vector = mutable_entry.embedding
-            else:
-                sealed_payload = sealed_vectors.get(vector_id)
-                if sealed_payload is None:
-                    continue
-                vector = sealed_payload[0]
-            score = float(sum(a * b for a, b in zip(query_vector, vector)))
-            scored.append((score, vector_id))
-
-        scored.sort(reverse=True)
-        return [vector_id for _score, vector_id in scored[:top_k]]
+        reranked = rerank_hybrid_candidates(
+            candidate_ids=candidate_ids,
+            top_k=top_k,
+            mutable_exact_search=lambda vector, limit, filter_fn, restricted_ids: self.query_executor.search_exact(
+                vector,
+                top_k=limit,
+                filter_fn=filter_fn,
+                candidate_ids=restricted_ids,
+            ),
+            sealed_exact_search=lambda vector, limit, sealed_filters, restricted_ids: self._query_sealed_exactish(
+                vector,
+                top_k=limit,
+                filters=sealed_filters,
+                shard_id=shard_id,
+                candidate_ids=restricted_ids,
+            ),
+            query_vector=query_vector,
+        )
+        return [candidate.vector_id for candidate in reranked.final_hits]

@@ -7,6 +7,14 @@ from pydantic import BaseModel, Field
 from turboquant_db.api.schemas import QueryHit
 
 
+class MeasuredTimingBreakdown(BaseModel):
+    mutable_search_latency_ms: float
+    sealed_search_latency_ms: float
+    merge_latency_ms: float
+    rerank_latency_ms: float
+    materialization_latency_ms: float = 0.0
+
+
 class MeasuredQueryTrace(BaseModel):
     mode: str
     top_k: int
@@ -23,6 +31,7 @@ class MeasuredQueryTrace(BaseModel):
     search_latency_ms: float
     rerank_latency_ms: float
     total_latency_ms: float
+    timing_breakdown: MeasuredTimingBreakdown
     notes: dict[str, Any] = Field(default_factory=dict)
     exported_trace: dict[str, Any] = Field(default_factory=dict)
 
