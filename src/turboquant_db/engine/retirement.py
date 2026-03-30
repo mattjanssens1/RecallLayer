@@ -1,4 +1,4 @@
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from turboquant_db.model.manifest import SegmentManifest, SegmentState
 
@@ -25,7 +25,7 @@ def apply_retirement(manifests: list[SegmentManifest], *, retired_segment_ids: l
     updated: list[SegmentManifest] = []
     for manifest in manifests:
         if manifest.segment_id in retired:
-            updated.append(replace(manifest, state=SegmentState.RETIRED))
+            updated.append(manifest.model_copy(update={"state": SegmentState.RETIRED}))
         else:
             updated.append(manifest)
     return updated
