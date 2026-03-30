@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "turboquant-native-vector-database"
+version = "0.1.0"
+description = "A TurboQuant-inspired vector database prototype"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Matt Jans" }
+]
+dependencies = [
+  "fastapi>=0.115,<1.0",
+  "numpy>=2.0,<3.0",
+  "pydantic>=2.8,<3.0",
+  "pyyaml>=6.0,<7.0",
+  "uvicorn>=0.30,<1.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.27,<1.0",
+  "pytest>=8.0,<9.0",
+  "ruff>=0.6,<1.0"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
