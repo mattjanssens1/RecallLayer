@@ -16,7 +16,7 @@ def test_observed_showcase_api_returns_diagnostics() -> None:
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["mode"] == "compressed-reranked-hybrid-observed"
+    assert payload["mode"] == "compressed-reranked-hybrid-observed-plus"
     assert payload["trace"]["latency_ms"] >= 0.0
     assert payload["trace"]["sealed_segment_count"] >= 1
     assert payload["trace"]["filters_applied"] is True

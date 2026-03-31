@@ -18,6 +18,6 @@ def test_observed_api_reranked_mode() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["mode"] == "compressed-reranked-hybrid-observed"
+    assert payload["mode"] == "compressed-reranked-hybrid-observed-plus"
     assert payload["trace"]["rerank_candidate_k"] >= 2
     assert payload["results"]

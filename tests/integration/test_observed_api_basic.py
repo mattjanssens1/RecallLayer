@@ -16,5 +16,5 @@ def test_observed_api_basic_modes() -> None:
 
     assert exact.status_code == 200
     assert compressed.status_code == 200
-    assert exact.json()["mode"] == "exact-hybrid-observed"
-    assert compressed.json()["mode"] == "compressed-hybrid-observed"
+    assert exact.json()["mode"] == "exact-hybrid-observed-plus"
+    assert compressed.json()["mode"] == "compressed-hybrid-observed-plus"

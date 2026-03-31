@@ -9,9 +9,9 @@ from turboquant_db.api.trace_schemas import QueryTrace, TraceableQueryResponse
 from turboquant_db.engine.showcase_scored_db import ShowcaseScoredDatabase
 
 
-def create_traced_showcase_app() -> FastAPI:
+def create_traced_showcase_app(root_dir: str = ".showcase_traced_api_db") -> FastAPI:
     app = FastAPI(title="TurboQuant Native Vector Database Showcase Traced")
-    db = ShowcaseScoredDatabase(collection_id="showcase-traced", root_dir=".showcase_traced_api_db")
+    db = ShowcaseScoredDatabase(collection_id="showcase-traced", root_dir=root_dir)
     runner = QuerySurfaceRunner(db=db)
 
     @app.get("/healthz")
