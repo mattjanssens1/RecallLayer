@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 from turboquant_db.engine.compaction_planner import CompactionPlan, CompactionPlanner
 from turboquant_db.engine.compactor import CompactionArtifacts, LocalSegmentCompactor
-from turboquant_db.engine.manifest_validation import raise_for_manifest_issues, validate_manifest_set
 from turboquant_db.engine.segment_manifest_store import SegmentManifestStore
-from turboquant_db.engine.retirement import apply_retirement, build_retirement_decision
 from turboquant_db.model.manifest import SegmentManifest, SegmentState, ShardManifest
 
 
@@ -17,6 +14,7 @@ class CompactionExecutionResult:
     artifacts: CompactionArtifacts
     updated_shard_manifest: ShardManifest
     updated_segment_manifests: list[SegmentManifest]
+    selected_source_segment_ids: list[str]
 
 
 class CompactionExecutor:
@@ -48,12 +46,15 @@ class CompactionExecutor:
             return None
 
         segment_manifests = self.segment_manifest_store.list_manifests(collection_id=collection_id, shard_id=shard_id)
-        plan = self.planner.plan(segment_manifests)
+        active_segment_ids = set(shard_manifest.active_segment_ids)
+        eligible_manifests = [
+            manifest
+            for manifest in segment_manifests
+            if manifest.segment_id in active_segment_ids and manifest.state in {SegmentState.ACTIVE, SegmentState.SEALED}
+        ]
+        plan = self.planner.plan(eligible_manifests)
         if plan is None:
             return None
-
-        selected_manifests = [manifest for manifest in segment_manifests if manifest.segment_id in set(plan.candidate_segment_ids)]
-        active_source_ids = [manifest.segment_id for manifest in selected_manifests if manifest.segment_id in shard_manifest.active_segment_ids]
 
         artifacts = self.compactor.compact(
             collection_id=collection_id,
@@ -62,31 +63,15 @@ class CompactionExecutor:
             generation=generation,
             embedding_version=embedding_version,
             quantizer_version=quantizer_version,
+            source_segment_ids=plan.candidate_segment_ids,
         )
-        artifacts.segment_manifest.state = SegmentState.ACTIVE
+        artifacts.segment_manifest.state = SegmentState.SEALED
         self.segment_manifest_store.save(artifacts.segment_manifest)
-
-        decision = build_retirement_decision(
-            current_active_segment_ids=shard_manifest.active_segment_ids,
-            replacement_segment_id=artifacts.segment_manifest.segment_id,
-            retired_segment_ids=active_source_ids,
-        )
-        updated_existing_manifests = apply_retirement(segment_manifests, retired_segment_ids=plan.candidate_segment_ids)
-        updated_segment_manifests = [
-            *updated_existing_manifests,
-            artifacts.segment_manifest,
-        ]
-        for manifest in updated_existing_manifests:
-            self.segment_manifest_store.save(manifest)
-
-        updated_shard_manifest = shard_manifest.model_copy(update={"active_segment_ids": decision.next_active_segment_ids})
-        issues = validate_manifest_set(shard_manifest=updated_shard_manifest, segment_manifests=updated_segment_manifests)
-        raise_for_manifest_issues(issues)
-        self.manifest_store.save(updated_shard_manifest)
 
         return CompactionExecutionResult(
             plan=plan,
             artifacts=artifacts,
-            updated_shard_manifest=updated_shard_manifest,
-            updated_segment_manifests=updated_segment_manifests,
+            updated_shard_manifest=shard_manifest,
+            updated_segment_manifests=[*segment_manifests, artifacts.segment_manifest],
+            selected_source_segment_ids=list(plan.candidate_segment_ids),
         )
