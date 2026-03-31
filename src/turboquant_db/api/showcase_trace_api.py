@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from time import perf_counter
 from typing import Any
 
 from turboquant_db.api.schemas import QueryRequest
-from turboquant_db.api.showcase_query_api import build_mode_name, count_hit_sources, segment_ids_for_paths
-from turboquant_db.engine.inspected_db import InspectedShowcaseDatabase
+from turboquant_db.api.showcase_notes import build_collection_notes
+from turboquant_db.api.showcase_query_api import build_mode_name
 
 
 class InspectedSurfaceRunner:
@@ -50,7 +49,7 @@ def build_inspected_trace_payload(*, request: QueryRequest, result: Any, collect
         "search_latency_ms": inspection.search_latency_ms,
         "rerank_latency_ms": inspection.rerank_latency_ms,
         "total_latency_ms": inspection.total_latency_ms,
-        "notes": {"collection_id": collection_id},
+        "notes": build_collection_notes(collection_id=collection_id),
     }
 
 
@@ -63,5 +62,5 @@ def build_traced_trace_payload(*, db: Any, request: QueryRequest, hits: list[Any
         "sealed_segment_count": len(db._segment_paths()),
         "result_count": len(hits),
         "rerank_candidate_k": max(request.top_k * 4, request.top_k) if request.approximate and request.rerank else None,
-        "notes": {"collection_id": collection_id},
+        "notes": build_collection_notes(collection_id=collection_id),
     }

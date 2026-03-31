@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from turboquant_db.api.schemas import QueryRequest
+from turboquant_db.api.showcase_notes import build_collection_notes
 from turboquant_db.api.showcase_trace_api import InspectedSurfaceRunner, build_inspected_trace_payload, build_traced_trace_payload
 
 
@@ -56,7 +57,7 @@ def test_trace_payload_builders_produce_expected_shapes() -> None:
     assert inspected_payload['mode'] == 'compressed-reranked-hybrid-engine'
     assert inspected_payload['pre_filter_candidate_estimate'] == 1
     assert inspected_payload['post_filter_candidate_estimate'] == 0
-    assert inspected_payload['notes']['collection_id'] == 'demo'
+    assert inspected_payload['notes'] == build_collection_notes(collection_id='demo')
     assert traced_payload['mode'] == 'compressed-reranked-hybrid-scored'
     assert traced_payload['sealed_segment_count'] == 1
     assert traced_payload['rerank_candidate_k'] == 8

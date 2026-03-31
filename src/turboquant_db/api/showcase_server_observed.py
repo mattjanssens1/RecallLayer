@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from turboquant_db.api.observed_schemas import ObservedQueryResponse, ObservedQueryTrace
 from turboquant_db.api.schemas import QueryHit, QueryRequest, UpsertRequest
+from turboquant_db.api.showcase_notes import build_collection_notes
 from turboquant_db.api.showcase_query_api import QuerySurfaceRunner, build_mode_name, segment_ids_for_paths
 from turboquant_db.engine.showcase_scored_db import ShowcaseScoredDatabase
 
@@ -50,7 +51,7 @@ def create_observed_showcase_app() -> FastAPI:
             candidate_count_estimate=candidate_estimate,
             pre_filter_candidate_estimate=candidate_estimate,
             post_filter_candidate_estimate=len(hits),
-            notes={"collection_id": db.collection_id},
+            notes=build_collection_notes(collection_id=db.collection_id),
         )
 
         return ObservedQueryResponse(
