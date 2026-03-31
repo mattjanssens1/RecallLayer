@@ -8,6 +8,7 @@ from turboquant_db.engine.mutable_buffer import MutableBuffer
 from turboquant_db.engine.query_executor import QueryExecutor
 from turboquant_db.engine.recovery_manager import RecoveryManager
 from turboquant_db.engine.sealed_segments import LocalSegmentStore, SegmentBuilder
+from turboquant_db.engine.segment_gc_executor import SegmentGarbageCollectionExecution, SegmentGarbageCollectionExecutor
 from turboquant_db.engine.segment_manifest_store import SegmentManifestStore
 from turboquant_db.engine.write_log import WriteLog
 from turboquant_db.model.manifest import SegmentState, ShardManifest
@@ -119,6 +120,14 @@ class LocalVectorDatabase:
             issues = validate_manifest_set(shard_manifest=shard_manifest, segment_manifests=segment_manifests)
             raise_for_manifest_issues(issues)
         return shard_manifest, segment_manifests
+
+    def collect_retired_segments(self, *, shard_id: str = "shard-0") -> SegmentGarbageCollectionExecution:
+        executor = SegmentGarbageCollectionExecutor(
+            segment_manifest_store=self.segment_manifest_store,
+            segments_root=self.root_dir / "segments",
+            manifests_root=self.root_dir / "manifests",
+        )
+        return executor.collect_shard(collection_id=self.collection_id, shard_id=shard_id)
 
     def recover(self) -> int:
         applied = self.recovery_manager.replay(
