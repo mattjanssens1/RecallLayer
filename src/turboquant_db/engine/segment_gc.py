@@ -11,6 +11,12 @@ class SegmentGarbageCandidate:
     manifest_path: Path
 
 
+@dataclass(slots=True)
+class SegmentGarbageCollectionResult:
+    removed_segment_ids: list[str]
+    removed_paths: list[Path]
+
+
 def plan_segment_garbage_collection(
     *,
     manifests: list[SegmentManifest],
@@ -30,3 +36,15 @@ def plan_segment_garbage_collection(
             )
         )
     return candidates
+
+
+def execute_segment_garbage_collection(candidates: list[SegmentGarbageCandidate]) -> SegmentGarbageCollectionResult:
+    removed_segment_ids: list[str] = []
+    removed_paths: list[Path] = []
+    for candidate in candidates:
+        for path in [candidate.segment_path, candidate.manifest_path]:
+            if path.exists():
+                path.unlink()
+                removed_paths.append(path)
+        removed_segment_ids.append(candidate.segment_id)
+    return SegmentGarbageCollectionResult(removed_segment_ids=removed_segment_ids, removed_paths=removed_paths)
