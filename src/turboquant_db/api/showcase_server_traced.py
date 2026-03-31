@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from turboquant_db.api.schemas import QueryHit, QueryRequest, UpsertRequest
 from turboquant_db.api.showcase_query_api import QuerySurfaceRunner, build_mode_name
+from turboquant_db.api.showcase_trace_api import build_traced_trace_payload
 from turboquant_db.api.trace_schemas import QueryTrace, TraceableQueryResponse
 from turboquant_db.engine.showcase_scored_db import ShowcaseScoredDatabase
 
@@ -31,16 +32,7 @@ def create_traced_showcase_app() -> FastAPI:
     def query(request: QueryRequest) -> TraceableQueryResponse:
         hits, base_mode, rerank_candidate_k = runner.execute_hits(request)
 
-        trace = QueryTrace(
-            mode=build_mode_name(base_mode, suffix="scored"),
-            top_k=request.top_k,
-            filters_applied=bool(request.filters),
-            mutable_live_count=len(db.mutable_buffer.live_entries()),
-            sealed_segment_count=len(db._segment_paths()),
-            result_count=len(hits),
-            rerank_candidate_k=rerank_candidate_k,
-            notes={"collection_id": db.collection_id},
-        )
+        trace = QueryTrace(**build_traced_trace_payload(db=db, request=request, hits=hits, base_mode=base_mode, collection_id=db.collection_id))
 
         return TraceableQueryResponse(
             results=[QueryHit(vector_id=hit.vector_id, score=hit.score, metadata=hit.metadata) for hit in hits],
