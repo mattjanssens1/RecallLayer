@@ -35,9 +35,21 @@ def validate_manifest_set(
             issues.append(ManifestValidationIssue(level="error", message="live rows exceed row count", segment_id=manifest.segment_id))
         if manifest.state == SegmentState.RETIRED and manifest.segment_id in shard_manifest.active_segment_ids:
             issues.append(ManifestValidationIssue(level="error", message="retired segment still active", segment_id=manifest.segment_id))
+        if manifest.state in {SegmentState.ACTIVE, SegmentState.SEALED} and manifest.sealed_at is None:
+            issues.append(ManifestValidationIssue(level="warn", message="sealed segment missing sealed_at", segment_id=manifest.segment_id))
+        if manifest.state == SegmentState.ACTIVE and manifest.activated_at is None:
+            issues.append(ManifestValidationIssue(level="warn", message="active segment missing activated_at", segment_id=manifest.segment_id))
 
     for segment_id in shard_manifest.active_segment_ids:
         if segment_id not in by_segment_id:
             issues.append(ManifestValidationIssue(level="error", message="active segment missing manifest", segment_id=segment_id))
 
     return issues
+
+
+def raise_for_manifest_issues(issues: list[ManifestValidationIssue]) -> None:
+    errors = [issue for issue in issues if issue.level == "error"]
+    if not errors:
+        return
+    formatted = ", ".join(f"{issue.message}:{issue.segment_id or '-'}" for issue in errors)
+    raise ValueError(f"manifest validation failed: {formatted}")

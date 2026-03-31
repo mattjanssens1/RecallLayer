@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from turboquant_db.api.measured_schemas import MeasuredQueryResponse, MeasuredQueryTrace
+from turboquant_db.api.measured_schemas import MeasuredQueryResponse, MeasuredQueryTrace, MeasuredTimingBreakdown
 from turboquant_db.api.schemas import QueryHit, QueryRequest, UpsertRequest
+from turboquant_db.api.showcase_notes import build_collection_notes
 from turboquant_db.engine.inspected_db import InspectedShowcaseDatabase
 from turboquant_db.engine.query_trace_export import build_query_trace_payload
 
@@ -48,11 +49,12 @@ def create_measured_showcase_app() -> FastAPI:
             )
 
         inspection = result.inspection
+        notes = build_collection_notes(collection_id=db.collection_id)
         exported_trace = build_query_trace_payload(
             inspection=inspection,
             plan=result.plan,
             stats=result.stats,
-            notes={"collection_id": db.collection_id},
+            notes=notes,
         )
         trace = MeasuredQueryTrace(
             mode=inspection.mode,
@@ -70,7 +72,8 @@ def create_measured_showcase_app() -> FastAPI:
             search_latency_ms=inspection.search_latency_ms,
             rerank_latency_ms=inspection.rerank_latency_ms,
             total_latency_ms=inspection.total_latency_ms,
-            notes={"collection_id": db.collection_id},
+            timing_breakdown=MeasuredTimingBreakdown(**exported_trace["inspection"]["timing_breakdown"]),
+            notes=notes,
             exported_trace=exported_trace,
         )
         return MeasuredQueryResponse(

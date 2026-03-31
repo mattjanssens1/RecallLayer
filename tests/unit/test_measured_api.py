@@ -32,6 +32,10 @@ def test_measured_api_reports_real_candidate_counts() -> None:
     assert payload["trace"]["exported_trace"]["plan"]["mode"] == "compressed-reranked-hybrid"
     assert payload["trace"]["exported_trace"]["stats"]["mutable_hit_count"] == payload["trace"]["mutable_hit_count"]
     assert payload["trace"]["exported_trace"]["notes"]["collection_id"] == "showcase-measured"
+    assert payload["trace"]["timing_breakdown"]["mutable_search_latency_ms"] >= 0.0
+    assert payload["trace"]["timing_breakdown"]["sealed_search_latency_ms"] >= 0.0
+    assert payload["trace"]["timing_breakdown"]["merge_latency_ms"] >= 0.0
+    assert payload["trace"]["timing_breakdown"]["rerank_latency_ms"] >= 0.0
     assert payload["trace"]["total_latency_ms"] >= payload["trace"]["search_latency_ms"]
 
 
