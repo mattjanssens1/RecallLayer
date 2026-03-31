@@ -14,6 +14,12 @@ def test_local_db_upsert_query_flush_and_recover(tmp_path: Path) -> None:
     manifest = db.flush_mutable(segment_id="seg-1", generation=1)
     assert manifest.active_segment_ids == ["seg-1"]
 
+    loaded_shard, loaded_segments = db.load_manifest_set()
+    assert loaded_shard is not None
+    assert loaded_shard.active_segment_ids == ["seg-1"]
+    assert [segment.segment_id for segment in loaded_segments] == ["seg-1"]
+    assert loaded_segments[0].state.value == "active"
+
     recovered = LocalVectorDatabase(collection_id="documents", root_dir=tmp_path)
     applied = recovered.recover()
     assert applied == 2

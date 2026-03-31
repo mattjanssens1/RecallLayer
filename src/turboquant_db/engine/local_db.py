@@ -3,12 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from turboquant_db.engine.manifest_store import ManifestStore
+from turboquant_db.engine.manifest_validation import raise_for_manifest_issues, validate_manifest_set
 from turboquant_db.engine.mutable_buffer import MutableBuffer
 from turboquant_db.engine.query_executor import QueryExecutor
 from turboquant_db.engine.recovery_manager import RecoveryManager
 from turboquant_db.engine.sealed_segments import LocalSegmentStore, SegmentBuilder
+from turboquant_db.engine.segment_manifest_store import SegmentManifestStore
 from turboquant_db.engine.write_log import WriteLog
-from turboquant_db.model.manifest import ShardManifest
+from turboquant_db.model.manifest import SegmentState, ShardManifest
 from turboquant_db.quantization.base import Quantizer
 from turboquant_db.quantization.scalar import ScalarQuantizer
 
@@ -35,6 +37,7 @@ class LocalVectorDatabase:
         self.mutable_buffer = MutableBuffer(collection_id=collection_id)
         self.write_log = WriteLog(self.root_dir / collection_id / "write_log.jsonl")
         self.manifest_store = ManifestStore(self.root_dir / "manifests")
+        self.segment_manifest_store = SegmentManifestStore(self.root_dir / "segment-manifests")
         self.segment_store = LocalSegmentStore(self.root_dir / "segments")
         self.segment_builder = SegmentBuilder(self.root_dir / "segments", quantizer=self.quantizer)
         self.recovery_manager = RecoveryManager(write_log=self.write_log, mutable_buffer=self.mutable_buffer)
@@ -84,7 +87,7 @@ class LocalVectorDatabase:
 
     def flush_mutable(self, *, shard_id: str = "shard-0", segment_id: str = "seg-0", generation: int = 1) -> ShardManifest:
         entries = self.mutable_buffer.live_entries()
-        manifest, _paths = self.segment_builder.build(
+        segment_manifest, _paths = self.segment_builder.build(
             collection_id=self.collection_id,
             shard_id=shard_id,
             segment_id=segment_id,
@@ -93,13 +96,29 @@ class LocalVectorDatabase:
             quantizer_version=self.quantizer_version,
             entries=entries,
         )
+        segment_manifest.state = SegmentState.ACTIVE
+        self.segment_manifest_store.save(segment_manifest)
+
         shard_manifest = ShardManifest(
             shard_id=shard_id,
             collection_id=self.collection_id,
-            active_segment_ids=[manifest.segment_id],
+            active_segment_ids=[segment_manifest.segment_id],
         )
+        issues = validate_manifest_set(
+            shard_manifest=shard_manifest,
+            segment_manifests=[segment_manifest],
+        )
+        raise_for_manifest_issues(issues)
         self.manifest_store.save(shard_manifest)
         return shard_manifest
+
+    def load_manifest_set(self, *, shard_id: str = "shard-0") -> tuple[ShardManifest | None, list]:
+        shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
+        segment_manifests = self.segment_manifest_store.list_manifests(collection_id=self.collection_id, shard_id=shard_id)
+        if shard_manifest is not None:
+            issues = validate_manifest_set(shard_manifest=shard_manifest, segment_manifests=segment_manifests)
+            raise_for_manifest_issues(issues)
+        return shard_manifest, segment_manifests
 
     def recover(self) -> int:
         applied = self.recovery_manager.replay(
