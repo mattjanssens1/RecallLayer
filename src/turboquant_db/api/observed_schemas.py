@@ -18,6 +18,8 @@ class ObservedQueryTrace(BaseModel):
     rerank_candidate_k: int | None = None
     latency_ms: float
     candidate_count_estimate: int
+    pre_filter_candidate_estimate: int | None = None
+    post_filter_candidate_estimate: int | None = None
     notes: dict[str, Any] = Field(default_factory=dict)
 
 

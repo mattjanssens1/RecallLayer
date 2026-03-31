@@ -36,6 +36,7 @@ def create_observed_showcase_app() -> FastAPI:
         hits, base_mode, rerank_candidate_k = runner.execute_hits(request)
         latency_ms = (perf_counter() - start) * 1000.0
 
+        candidate_estimate = max(len(hits), rerank_candidate_k or len(hits))
         trace = ObservedQueryTrace(
             mode=build_mode_name(base_mode, suffix="observed"),
             top_k=request.top_k,
@@ -46,7 +47,9 @@ def create_observed_showcase_app() -> FastAPI:
             result_count=len(hits),
             rerank_candidate_k=rerank_candidate_k,
             latency_ms=latency_ms,
-            candidate_count_estimate=max(len(hits), rerank_candidate_k or len(hits)),
+            candidate_count_estimate=candidate_estimate,
+            pre_filter_candidate_estimate=candidate_estimate,
+            post_filter_candidate_estimate=len(hits),
             notes={"collection_id": db.collection_id},
         )
 

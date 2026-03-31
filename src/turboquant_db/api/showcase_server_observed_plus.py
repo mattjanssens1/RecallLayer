@@ -38,6 +38,7 @@ def create_observed_plus_showcase_app() -> FastAPI:
 
         mutable_hit_count, sealed_hit_count = count_hit_sources(db=db, hits=hits)
 
+        candidate_estimate = max(len(hits), rerank_candidate_k or len(hits))
         trace = ObservedPlusQueryTrace(
             mode=build_mode_name(base_mode, suffix="observed-plus"),
             top_k=request.top_k,
@@ -50,7 +51,9 @@ def create_observed_plus_showcase_app() -> FastAPI:
             sealed_hit_count=sealed_hit_count,
             rerank_candidate_k=rerank_candidate_k,
             latency_ms=latency_ms,
-            candidate_count_estimate=max(len(hits), rerank_candidate_k or len(hits)),
+            candidate_count_estimate=candidate_estimate,
+            pre_filter_candidate_estimate=candidate_estimate,
+            post_filter_candidate_estimate=len(hits),
             notes={"collection_id": db.collection_id},
         )
 
