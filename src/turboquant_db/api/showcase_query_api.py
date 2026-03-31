@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from turboquant_db.api.schemas import QueryRequest
+from turboquant_db.api.schemas import QueryRequest, QueryResponse, QueryHit
 
 
 class QuerySurfaceRunner:
@@ -59,3 +59,10 @@ def count_hit_sources(*, db: Any, hits: list[Any]) -> tuple[int, int]:
 
 def segment_ids_for_paths(paths: list[str]) -> list[str]:
     return [path.split("/")[-1] for path in paths]
+
+
+def build_scored_query_response(*, hits: list[Any], base_mode: str) -> QueryResponse:
+    return QueryResponse(
+        results=[QueryHit(vector_id=hit.vector_id, score=hit.score, metadata=hit.metadata) for hit in hits],
+        mode=build_mode_name(base_mode, suffix="scored"),
+    )
