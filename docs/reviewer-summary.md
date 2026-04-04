@@ -25,17 +25,23 @@ Use these as the current source of truth:
 
 `observed` remains available as a compatibility alias, but it is no longer the named primary path.
 
-## What was actually proved
+## What this PR stack now establishes
 
-The repo now has a repeatable proof workflow with:
+This stack now gives the repo three concrete strengths:
 
-- a **green full test suite**
-- **clean-state test isolation**
-- a working **quickstart path**
-- a working **best-API demo path**
-- a successful **canonical benchmark and report run**
-- a successful **proof-pack export**
-- proof docs describing the run sequence, expected outputs, and caveats
+1. **Repeatable proof workflow**
+   - green tests from clean state
+   - working quickstart / best-API / canonical benchmark / proof-pack flow
+
+2. **Canonical path clarity**
+   - `best` is the named primary local/API path
+   - `observed` is compatibility-only
+
+3. **Clearer ordinary flush lifecycle semantics**
+   - empty flush is an intentional no-op
+   - successful flush stamps lifecycle metadata
+   - flushed mutable rows drain from runtime mutable state
+   - repeated flushes preserve sealed query visibility by growing the active sealed set until later compaction / retirement rewrites it
 
 ## Proof run results
 
@@ -46,11 +52,23 @@ Command:
 pytest -q
 ```
 
-Result:
+Earlier proof-hardening result:
 
 * **104 passed**
 * **0 failed**
 * **1 expected deprecation warning** for `app_observed.py`
+
+Current validation after the flush lifecycle pass:
+
+```bash
+/home/moose/.openclaw/workspace/TurboQuant-native-vector-database/.venv/bin/python -m pytest tests/unit tests/integration -q
+```
+
+Result:
+
+* **111 passed**
+* **0 failed**
+* **1 warning** (`app_observed.py` soft deprecation warning)
 
 ### Quickstart demo
 
@@ -77,13 +95,12 @@ python scripts/demo_best_api_flow.py
 Observed behavior:
 
 * returned hits with metadata
-* returned a compressed+rERANK result mode
+* returned a compressed+rerank result mode
 * returned trace diagnostics including:
-
- * latency
- * sealed segment IDs
- * hit counts
- * rerank candidate count
+  * latency
+  * sealed segment IDs
+  * hit counts
+  * rerank candidate count
 
 ### Canonical benchmark workflow
 
@@ -131,6 +148,23 @@ The proof run generated report artifacts including:
 * `reports/quantizer_summary.json`
 * quantizer JSON artifacts under `reports/quantizers/`
 
+## Flush lifecycle note for reviewers
+
+The new lifecycle work is intentionally modest in scope.
+
+It does **not** claim that flush is already a full checkpoint-aware durability barrier.
+Current recovery still replays the write log into mutable state and should still be read as prototype replay behavior.
+
+What it **does** improve is runtime correctness clarity:
+- empty flush no longer creates misleading zero-row active state
+- manifest-visible active sealed state now tracks ordinary repeated flushes more honestly
+- runtime mutable/sealed transition is explicit and tested
+
+See:
+- `docs/flush-lifecycle.md`
+- `tests/unit/test_flush_lifecycle.py`
+- `tests/unit/test_flush_lifecycle_target_contract.py`
+
 ## Important caveats
 
 This proof run supports the claim that the repo is a **strong working prototype** with repeatable evidence.
@@ -150,4 +184,4 @@ This project has moved from:
 
 to:
 
-> a strong prototype with a green test suite, coherent canonical path, working best-API demo, and repeatable benchmark and report proof workflow
+> a strong prototype with a green test suite, coherent canonical path, working best-API demo, repeatable benchmark/report proof workflow, and a clearer ordinary flush lifecycle contract

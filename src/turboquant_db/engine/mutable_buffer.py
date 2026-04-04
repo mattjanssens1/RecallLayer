@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from threading import RLock
-from typing import Any
+from typing import Any, Iterable
 
 from turboquant_db.model.records import VectorRecord
 
@@ -108,6 +108,19 @@ class MutableBuffer:
     def live_entries(self) -> list[MutableBufferEntry]:
         with self._lock:
             return [entry for entry in self._entries.values() if not entry.record.is_deleted]
+
+    def remove(self, vector_id: str) -> MutableBufferEntry | None:
+        with self._lock:
+            return self._entries.pop(vector_id, None)
+
+    def remove_many(self, vector_ids: Iterable[str]) -> list[MutableBufferEntry]:
+        removed: list[MutableBufferEntry] = []
+        with self._lock:
+            for vector_id in vector_ids:
+                entry = self._entries.pop(vector_id, None)
+                if entry is not None:
+                    removed.append(entry)
+        return removed
 
     def watermark(self) -> int:
         with self._lock:
