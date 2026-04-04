@@ -51,3 +51,4 @@ class ShardManifest(BaseModel):
     warm_tier_location: str = "file://local"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     active_segment_ids: list[str] = Field(default_factory=list)
+    replay_from_write_epoch: int = Field(default=0, ge=0)
