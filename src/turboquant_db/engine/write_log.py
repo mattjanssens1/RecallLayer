@@ -81,7 +81,7 @@ class WriteLog:
         self.append(entry)
         return entry
 
-    def replay(self) -> Iterable[WriteLogEntry]:
+    def replay(self, *, after_write_epoch: int = 0) -> Iterable[WriteLogEntry]:
         if not self.path.exists():
             return []
 
@@ -91,5 +91,8 @@ class WriteLog:
                 line = line.strip()
                 if not line:
                     continue
-                entries.append(WriteLogEntry.model_validate_json(line))
+                entry = WriteLogEntry.model_validate_json(line)
+                if entry.write_epoch <= after_write_epoch:
+                    continue
+                entries.append(entry)
         return entries

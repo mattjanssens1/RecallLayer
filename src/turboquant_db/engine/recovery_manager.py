@@ -11,9 +11,9 @@ class RecoveryManager:
         self.write_log = write_log
         self.mutable_buffer = mutable_buffer
 
-    def replay(self, *, embedding_version: str, quantizer_version: str) -> int:
+    def replay(self, *, embedding_version: str, quantizer_version: str, after_write_epoch: int = 0) -> int:
         applied = 0
-        for entry in self.write_log.replay():
+        for entry in self.write_log.replay(after_write_epoch=after_write_epoch):
             if entry.operation == WriteOperation.UPSERT:
                 if entry.embedding is None:
                     continue

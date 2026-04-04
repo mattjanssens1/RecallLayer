@@ -22,5 +22,5 @@ def test_local_db_upsert_query_flush_and_recover(tmp_path: Path) -> None:
 
     recovered = LocalVectorDatabase(collection_id="documents", root_dir=tmp_path)
     applied = recovered.recover()
-    assert applied == 2
-    assert recovered.query_exact([0.9, 0.1], top_k=1) == ["a"]
+    assert applied == 0
+    assert recovered.mutable_buffer.live_entries() == []

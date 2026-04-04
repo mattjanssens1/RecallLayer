@@ -24,3 +24,4 @@ def test_shard_manifest_defaults() -> None:
 
     assert shard.state == ShardState.ACTIVE
     assert shard.active_segment_ids == []
+    assert shard.replay_from_write_epoch == 0

@@ -113,6 +113,7 @@ class LocalVectorDatabase:
             shard_id=shard_id,
             collection_id=self.collection_id,
             active_segment_ids=[*prior_active_segment_ids, segment_manifest.segment_id],
+            replay_from_write_epoch=segment_manifest.max_write_epoch,
         )
         existing_segment_manifests = self.segment_manifest_store.list_manifests(
             collection_id=self.collection_id,
@@ -143,10 +144,13 @@ class LocalVectorDatabase:
         )
         return executor.collect_shard(collection_id=self.collection_id, shard_id=shard_id)
 
-    def recover(self) -> int:
+    def recover(self, *, shard_id: str = "shard-0") -> int:
+        shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
+        replay_from_write_epoch = shard_manifest.replay_from_write_epoch if shard_manifest is not None else 0
         applied = self.recovery_manager.replay(
             embedding_version=self.embedding_version,
             quantizer_version=self.quantizer_version,
+            after_write_epoch=replay_from_write_epoch,
         )
-        self._write_epoch = self.mutable_buffer.watermark()
+        self._write_epoch = max(self._write_epoch, self.mutable_buffer.watermark(), replay_from_write_epoch)
         return applied
