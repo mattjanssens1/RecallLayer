@@ -83,7 +83,10 @@ class CompactionExecutor:
         updated_shard_manifest = shard_manifest.model_copy(
             update={
                 "active_segment_ids": decision.next_active_segment_ids,
-                "replay_from_write_epoch": artifacts.segment_manifest.max_write_epoch,
+                "replay_from_write_epoch": max(
+                    shard_manifest.replay_from_write_epoch,
+                    artifacts.segment_manifest.max_write_epoch,
+                ),
             }
         )
         issues = validate_manifest_set(shard_manifest=updated_shard_manifest, segment_manifests=updated_segment_manifests)

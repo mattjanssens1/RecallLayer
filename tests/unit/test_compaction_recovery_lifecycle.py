@@ -17,7 +17,7 @@ def build_executor(tmp_path: Path) -> CompactionExecutor:
     )
 
 
-def test_compaction_updates_replay_watermark_to_replacement_segment_max_epoch(tmp_path: Path) -> None:
+def test_compaction_keeps_replay_watermark_aligned_and_monotonic(tmp_path: Path) -> None:
     db = ShowcaseLocalDatabase(collection_id='documents', root_dir=tmp_path)
     db.upsert(vector_id='a', embedding=[1.0, 0.0], metadata={'region': 'us'})
     first_manifest = db.flush_mutable(segment_id='seg-1', generation=1)
@@ -37,6 +37,28 @@ def test_compaction_updates_replay_watermark_to_replacement_segment_max_epoch(tm
     stored_shard = ManifestStore(tmp_path / 'manifests').load(collection_id='documents', shard_id='shard-0')
     assert stored_shard is not None
     assert stored_shard.replay_from_write_epoch == 2
+
+
+def test_compaction_does_not_move_replay_watermark_backwards_when_only_older_segments_are_compacted(tmp_path: Path) -> None:
+    db = ShowcaseLocalDatabase(collection_id='documents', root_dir=tmp_path)
+    db.upsert(vector_id='a', embedding=[1.0, 0.0], metadata={'region': 'us'})
+    db.flush_mutable(segment_id='seg-1', generation=1)
+    db.upsert(vector_id='b', embedding=[0.0, 1.0], metadata={'region': 'ca'})
+    latest_manifest = db.flush_mutable(segment_id='seg-2', generation=2)
+
+    assert latest_manifest is not None
+    assert latest_manifest.replay_from_write_epoch == 2
+
+    executor = build_executor(tmp_path)
+    result = executor.compact_shard(
+        collection_id='documents',
+        shard_id='shard-0',
+        output_segment_id='seg-merged',
+        generation=3,
+    )
+
+    assert result is not None
+    assert result.updated_shard_manifest.replay_from_write_epoch >= latest_manifest.replay_from_write_epoch
 
 
 def test_recover_after_compaction_replays_nothing_when_no_new_writes_exist(tmp_path: Path) -> None:
