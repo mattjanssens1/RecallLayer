@@ -80,7 +80,12 @@ class CompactionExecutor:
         for manifest in updated_existing_manifests:
             self.segment_manifest_store.save(manifest)
 
-        updated_shard_manifest = shard_manifest.model_copy(update={"active_segment_ids": decision.next_active_segment_ids})
+        updated_shard_manifest = shard_manifest.model_copy(
+            update={
+                "active_segment_ids": decision.next_active_segment_ids,
+                "replay_from_write_epoch": artifacts.segment_manifest.max_write_epoch,
+            }
+        )
         issues = validate_manifest_set(shard_manifest=updated_shard_manifest, segment_manifests=updated_segment_manifests)
         raise_for_manifest_issues(issues)
         self.manifest_store.save(updated_shard_manifest)
