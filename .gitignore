@@ -1,0 +1,33 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local runtime / showcase API state
+.showcase_api_db/
+.showcase_scored_api_db/
+.showcase_traced_api_db/
+.showcase_observed_api_db/
+.showcase_observed_plus_api_db/
+.showcase_inspected_api_db/
+.showcase_measured_api_db/
+.quickstart_db/
+.showcase_benchmark_db/
+.test_showcase_benchmark_db/
+
+# Benchmark/proof temp state
+.extended_benchmark-*/
+.extended_benchmark_*/
+.quantizer_compare-*/
+.proof_pack-*/
+.proof_pack_test-*/
+.proof_pack-exact-*/
+.proof_pack_test-exact-*/
+.test_cluster_benchmark-*/
+.test_highdim_benchmark-*/
+.test_xlarge_benchmark-*/
+
+# Local report scratch artifacts can be regenerated if needed
+# (tracked report outputs remain addable explicitly)
+

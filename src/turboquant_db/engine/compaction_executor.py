@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from turboquant_db.engine.compaction_planner import CompactionPlan, CompactionPlanner
 from turboquant_db.engine.compactor import CompactionArtifacts, LocalSegmentCompactor
+from turboquant_db.engine.manifest_validation import raise_for_manifest_issues, validate_manifest_set
+from turboquant_db.engine.retirement import apply_retirement, build_retirement_decision
 from turboquant_db.engine.segment_manifest_store import SegmentManifestStore
 from turboquant_db.model.manifest import SegmentManifest, SegmentState, ShardManifest
 
@@ -65,13 +67,28 @@ class CompactionExecutor:
             quantizer_version=quantizer_version,
             source_segment_ids=plan.candidate_segment_ids,
         )
-        artifacts.segment_manifest.state = SegmentState.SEALED
+        artifacts.segment_manifest.state = SegmentState.ACTIVE
         self.segment_manifest_store.save(artifacts.segment_manifest)
+
+        decision = build_retirement_decision(
+            current_active_segment_ids=shard_manifest.active_segment_ids,
+            replacement_segment_id=artifacts.segment_manifest.segment_id,
+            retired_segment_ids=plan.candidate_segment_ids,
+        )
+        updated_existing_manifests = apply_retirement(segment_manifests, retired_segment_ids=decision.retired_segment_ids)
+        updated_segment_manifests = [*updated_existing_manifests, artifacts.segment_manifest]
+        for manifest in updated_existing_manifests:
+            self.segment_manifest_store.save(manifest)
+
+        updated_shard_manifest = shard_manifest.model_copy(update={"active_segment_ids": decision.next_active_segment_ids})
+        issues = validate_manifest_set(shard_manifest=updated_shard_manifest, segment_manifests=updated_segment_manifests)
+        raise_for_manifest_issues(issues)
+        self.manifest_store.save(updated_shard_manifest)
 
         return CompactionExecutionResult(
             plan=plan,
             artifacts=artifacts,
-            updated_shard_manifest=shard_manifest,
-            updated_segment_manifests=[*segment_manifests, artifacts.segment_manifest],
+            updated_shard_manifest=updated_shard_manifest,
+            updated_segment_manifests=updated_segment_manifests,
             selected_source_segment_ids=list(plan.candidate_segment_ids),
         )

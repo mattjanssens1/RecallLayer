@@ -19,15 +19,16 @@ This is the current best local surface because it supports:
 
 Start with:
 
-- `src/turboquant_db/api/app.py`
+- `src/turboquant_db/api/app_best.py`
 
-This points to the traced showcase API and is the current best external service surface.
+Use `src/turboquant_db/api/app.py` only as the default module alias for the current best surface.
 
 ## 3. Quick run commands
 
 ```bash
 pip install -e .[dev]
 python examples/quickstart.py
+python scripts/run_best_api.py
 python scripts/run_showcase_benchmark.py
 python scripts/run_quantizer_comparison.py
 python scripts/run_extended_benchmark.py

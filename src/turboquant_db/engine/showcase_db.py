@@ -18,7 +18,17 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
     """
 
     def _segment_paths(self, *, shard_id: str = "shard-0") -> list[str]:
-        return [str(path) for path in self.segment_store.list_segment_files(collection_id=self.collection_id, shard_id=shard_id)]
+        shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
+        if shard_manifest is None or not shard_manifest.active_segment_ids:
+            return [str(path) for path in self.segment_store.list_segment_files(collection_id=self.collection_id, shard_id=shard_id)]
+
+        shard_dir = Path(self.segment_store.root_dir) / self.collection_id / shard_id
+        paths: list[str] = []
+        for segment_id in shard_manifest.active_segment_ids:
+            path = shard_dir / f"{segment_id}.segment.jsonl"
+            if path.exists():
+                paths.append(str(path))
+        return paths
 
     def _query_sealed_exactish(
         self,

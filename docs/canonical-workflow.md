@@ -8,12 +8,12 @@ Start with:
 
 - `docs/start-here.md`
 - `docs/public-surface.md`
-- `docs/observed-api.md`
+- `docs/best-api.md`
 
 ## 2. Run the best API
 
 ```bash
-python scripts/run_observed_api.py
+python scripts/run_best_api.py
 ```
 
 ## 3. Generate the main benchmark/report outputs
@@ -35,3 +35,5 @@ Then inspect:
 ## Why this file exists
 
 The repository now has enough working scripts and report exporters that a single canonical workflow is more useful than forcing contributors to infer the order from filenames.
+
+For current API demos, prefer the `best` surface. Treat `observed` names as compatibility aliases unless a doc explicitly says otherwise.

@@ -1,10 +1,10 @@
 from fastapi.testclient import TestClient
 
-from turboquant_db.api.app import create_app
+from turboquant_db.api.showcase_server_traced import create_traced_showcase_app
 
 
-def test_traced_showcase_api_empty_query_and_bad_payload() -> None:
-    app = create_app()
+def test_traced_showcase_api_empty_query_and_bad_payload(tmp_path) -> None:
+    app = create_traced_showcase_app(root_dir=str(tmp_path / ".showcase_traced_api_db"))
     client = TestClient(app)
 
     empty = client.post(

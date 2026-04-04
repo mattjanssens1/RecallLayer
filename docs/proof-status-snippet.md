@@ -1,0 +1,3 @@
+## Proof status
+
+This repo now has a repeatable proof workflow. The full test suite passes cleanly (`104 passed, 0 failed`), the quickstart and best-API demo paths both run successfully, the canonical benchmark workflow completes, and the compact proof artifact exports successfully to `reports/proof_pack.md`. Canonical usage is now centered on `turboquant_db.showcase.ShowcaseScoredDatabase`, `src/turboquant_db/api/app_best.py`, `python scripts/run_best_api.py`, `python scripts/run_canonical_flow.py`, and `python scripts/export_proof_pack.py`. The repo should be understood as a **strong prototype** with real engine behavior and repeatable evidence, not as a production-ready system or a claim of full TurboQuant fidelity.

@@ -11,9 +11,9 @@ from turboquant_db.api.showcase_query_api import QuerySurfaceRunner, build_mode_
 from turboquant_db.engine.showcase_scored_db import ShowcaseScoredDatabase
 
 
-def create_observed_plus_showcase_app() -> FastAPI:
+def create_observed_plus_showcase_app(root_dir: str = ".showcase_observed_plus_api_db") -> FastAPI:
     app = FastAPI(title="TurboQuant Native Vector Database Showcase Observed Plus")
-    db = ShowcaseScoredDatabase(collection_id="showcase-observed-plus", root_dir=".showcase_observed_plus_api_db")
+    db = ShowcaseScoredDatabase(collection_id="showcase-observed-plus", root_dir=root_dir)
     runner = QuerySurfaceRunner(db=db)
 
     @app.get("/healthz")

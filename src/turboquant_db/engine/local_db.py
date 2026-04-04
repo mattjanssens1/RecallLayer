@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from turboquant_db.engine.manifest_store import ManifestStore
@@ -8,6 +9,7 @@ from turboquant_db.engine.mutable_buffer import MutableBuffer
 from turboquant_db.engine.query_executor import QueryExecutor
 from turboquant_db.engine.recovery_manager import RecoveryManager
 from turboquant_db.engine.sealed_segments import LocalSegmentStore, SegmentBuilder
+from turboquant_db.engine.segment_gc_executor import SegmentGarbageCollectionExecution, SegmentGarbageCollectionExecutor
 from turboquant_db.engine.segment_manifest_store import SegmentManifestStore
 from turboquant_db.engine.write_log import WriteLog
 from turboquant_db.model.manifest import SegmentState, ShardManifest
@@ -85,8 +87,11 @@ class LocalVectorDatabase:
     def query_compressed(self, query_vector: list[float], *, top_k: int) -> list[str]:
         return [item.vector_id for item in self.query_executor.search_compressed(query_vector, top_k=top_k)]
 
-    def flush_mutable(self, *, shard_id: str = "shard-0", segment_id: str = "seg-0", generation: int = 1) -> ShardManifest:
+    def flush_mutable(self, *, shard_id: str = "shard-0", segment_id: str = "seg-0", generation: int = 1) -> ShardManifest | None:
         entries = self.mutable_buffer.live_entries()
+        if not entries:
+            return None
+
         segment_manifest, _paths = self.segment_builder.build(
             collection_id=self.collection_id,
             shard_id=shard_id,
@@ -96,20 +101,30 @@ class LocalVectorDatabase:
             quantizer_version=self.quantizer_version,
             entries=entries,
         )
+        now = datetime.now(timezone.utc)
         segment_manifest.state = SegmentState.ACTIVE
+        segment_manifest.sealed_at = segment_manifest.sealed_at or now
+        segment_manifest.activated_at = segment_manifest.activated_at or now
         self.segment_manifest_store.save(segment_manifest)
 
+        previous_shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
+        prior_active_segment_ids = previous_shard_manifest.active_segment_ids if previous_shard_manifest is not None else []
         shard_manifest = ShardManifest(
             shard_id=shard_id,
             collection_id=self.collection_id,
-            active_segment_ids=[segment_manifest.segment_id],
+            active_segment_ids=[*prior_active_segment_ids, segment_manifest.segment_id],
+        )
+        existing_segment_manifests = self.segment_manifest_store.list_manifests(
+            collection_id=self.collection_id,
+            shard_id=shard_id,
         )
         issues = validate_manifest_set(
             shard_manifest=shard_manifest,
-            segment_manifests=[segment_manifest],
+            segment_manifests=existing_segment_manifests,
         )
         raise_for_manifest_issues(issues)
         self.manifest_store.save(shard_manifest)
+        self.mutable_buffer.remove_many(entry.record.vector_id for entry in entries)
         return shard_manifest
 
     def load_manifest_set(self, *, shard_id: str = "shard-0") -> tuple[ShardManifest | None, list]:
@@ -119,6 +134,14 @@ class LocalVectorDatabase:
             issues = validate_manifest_set(shard_manifest=shard_manifest, segment_manifests=segment_manifests)
             raise_for_manifest_issues(issues)
         return shard_manifest, segment_manifests
+
+    def collect_retired_segments(self, *, shard_id: str = "shard-0") -> SegmentGarbageCollectionExecution:
+        executor = SegmentGarbageCollectionExecutor(
+            segment_manifest_store=self.segment_manifest_store,
+            segments_root=self.root_dir / "segments",
+            manifests_root=self.root_dir / "manifests",
+        )
+        return executor.collect_shard(collection_id=self.collection_id, shard_id=shard_id)
 
     def recover(self) -> int:
         applied = self.recovery_manager.replay(

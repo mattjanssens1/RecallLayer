@@ -1,10 +1,12 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from turboquant_db.api.showcase_server_traced import create_traced_showcase_app
 
 
-def test_traced_showcase_api_upsert_flush_and_query() -> None:
-    app = create_traced_showcase_app()
+def test_traced_showcase_api_upsert_flush_and_query(tmp_path: Path) -> None:
+    app = create_traced_showcase_app(root_dir=str(tmp_path))
     client = TestClient(app)
 
     response = client.put(

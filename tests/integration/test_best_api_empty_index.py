@@ -3,8 +3,8 @@ from fastapi.testclient import TestClient
 from turboquant_db.api.app_best import create_app
 
 
-def test_best_api_empty_index_query() -> None:
-    app = create_app()
+def test_best_api_empty_index_query(tmp_path) -> None:
+    app = create_app(root_dir=str(tmp_path / ".showcase_observed_plus_api_db"))
     client = TestClient(app)
 
     response = client.post(
