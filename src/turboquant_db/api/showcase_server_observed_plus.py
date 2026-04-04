@@ -28,7 +28,7 @@ def create_observed_plus_showcase_app(root_dir: str = ".showcase_observed_plus_a
     @app.post("/v1/flush")
     def flush() -> dict[str, object]:
         manifest = db.flush_mutable(segment_id=f"seg-{db.mutable_buffer.watermark()}", generation=1)
-        return {"active_segment_ids": manifest.active_segment_ids}
+        return {"active_segment_ids": manifest.active_segment_ids if manifest is not None else []}
 
     @app.post("/v1/query", response_model=ObservedPlusQueryResponse)
     def query(request: QueryRequest) -> ObservedPlusQueryResponse:
