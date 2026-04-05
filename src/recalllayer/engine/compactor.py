@@ -58,6 +58,8 @@ class LocalSegmentCompactor:
             with path.open('r', encoding='utf-8') as handle:
                 for line in handle:
                     payload = json.loads(line)
+                    if payload.get('__header__'):
+                        continue
                     vector_id = payload['vector_id']
                     write_epoch = int(payload.get('write_epoch', 0))
                     current = latest_rows.get(vector_id)
