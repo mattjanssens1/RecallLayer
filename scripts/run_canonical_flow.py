@@ -3,12 +3,10 @@ from __future__ import annotations
 import subprocess
 import sys
 
-
 COMMANDS = [
     [sys.executable, "scripts/run_showcase_benchmark.py"],
-    [sys.executable, "scripts/run_quantizer_comparison.py"],
-    [sys.executable, "scripts/run_extended_benchmark.py"],
-    [sys.executable, "scripts/export_all_reports.py"],
+    [sys.executable, "scripts/export_proof_pack.py"],
+    [sys.executable, "scripts/run_cache_sprint4_benchmark.py"],
 ]
 
 

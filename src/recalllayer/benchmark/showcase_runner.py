@@ -23,10 +23,25 @@ def run_showcase_benchmark(root_dir: str = ".showcase_benchmark_db") -> Showcase
     result = run_mini_harness(db, dataset.queries, top_k=2)
     rows = [
         ComparisonRow(
-            name="showcase-scored-db",
-            latency_ms=result.compressed_elapsed_ms,
-            recall_at_1=result.recall_at_1,
-            recall_at_10=result.recall_at_10,
-        )
+            name=f"showcase-scored-db:{result.exact.path_name}",
+            latency_ms=result.exact.latency_ms,
+            recall_at_1=result.exact.recall_at_1,
+            recall_at_10=result.exact.recall_at_10,
+        ),
+        ComparisonRow(
+            name=f"showcase-scored-db:{result.compressed.path_name}",
+            latency_ms=result.compressed.latency_ms,
+            recall_at_1=result.compressed.recall_at_1,
+            recall_at_10=result.compressed.recall_at_10,
+        ),
     ]
+    if result.reranked is not None:
+        rows.append(
+            ComparisonRow(
+                name=f"showcase-scored-db:{result.reranked.path_name}",
+                latency_ms=result.reranked.latency_ms,
+                recall_at_1=result.reranked.recall_at_1,
+                recall_at_10=result.reranked.recall_at_10,
+            )
+        )
     return ShowcaseRunArtifacts(rows=rows)
