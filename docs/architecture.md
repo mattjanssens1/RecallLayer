@@ -1,345 +1,266 @@
-# Architecture
+# RecallLayer Architecture
 
 ## 1. Objective
 
-Design a vector database that:
+RecallLayer is designed as a **vector retrieval sidecar for existing databases**.
 
-- stores extremely large embedding corpora efficiently
-- preserves high nearest-neighbor recall
-- supports online writes
-- keeps query latency low
-- cleanly separates approximate retrieval from precise reranking
+Its job is not to replace the application's primary system of record.
+Its job is to:
+- store retrieval-optimized vector state
+- support compressed and hybrid retrieval
+- return candidate ids and scores for rerank or hydration
+- manage vector lifecycle transitions such as mutable writes, flush, recovery, compaction, and delete visibility
 
-The intended pattern is:
+The intended production-shaped pattern is:
+- **Stage A**: application truth lives in Postgres or another host database
+- **Stage B**: RecallLayer stores retrieval-facing vector state
+- **Stage C**: RecallLayer returns candidate ids and scores
+- **Stage D**: the application hydrates and validates final records from the host database
 
-- **Stage A**: retrieve candidates from a compressed search representation
-- **Stage B**: rerank top candidates using a higher-precision representation
+## 2. Core system boundary
 
-## 2. Core model
+### 2.1 Host database
+The host database owns:
+- canonical records
+- transactional updates
+- auth and permissions truth
+- joins and relational structure
+- final business-visible state
 
-Each logical vector is stored in two layers:
+Examples:
+- Postgres
+- MySQL
+- MongoDB
+- application-managed document stores
 
-### 2.1 Compressed search representation
-Used for first-pass retrieval.
+### 2.2 RecallLayer
+RecallLayer owns:
+- vector ids
+- embeddings or compressed retrieval representations
+- retrieval-facing copied metadata
+- mutable and sealed retrieval state
+- retrieval query execution
+- lifecycle transitions such as flush, recovery, and compaction
+
+### 2.3 Application service
+The application service coordinates the two systems.
+
+It:
+- writes source truth into the host DB
+- generates or receives embeddings
+- writes vector state into RecallLayer
+- issues queries to RecallLayer
+- hydrates returned ids from the host DB
+- enforces final visibility and business logic
+
+## 3. Core retrieval model
+
+Each logical vector is represented in RecallLayer using a retrieval-oriented two-stage pattern.
+
+### 3.1 Retrieval representation
+Used for first-pass candidate generation.
 
 Contains:
-
 - vector identifier
 - shard identifier
-- compressed code
-- residual / correction bits
-- optional norm or side statistics
-- filter metadata references
+- compressed code or retrieval payload
+- retrieval-facing metadata
+- lifecycle metadata needed for storage correctness
 
-This layer is optimized for:
-
+Optimized for:
 - memory density
-- scan or ANN speed
-- preserving ranking quality well enough to generate strong candidates
+- candidate generation speed
+- compatibility with hybrid retrieval over mutable + sealed state
 
-### 2.2 Higher-precision rerank representation
-Used only for a short candidate list.
+### 3.2 Higher-precision ranking path
+Used for rerank or exact-ish scoring.
 
 Contains one of:
+- full-precision vector
+- higher-precision derived representation
+- exactish retrieval path over mutable or sealed state
 
-- fp32 source vector
-- fp16 compact exact-ish copy
-- int8 or another higher-precision derived representation
-
-This layer is optimized for:
-
+Optimized for:
 - final ranking quality
-- optional auditability
-- fallback correctness checks during evaluation
+- diagnostics and validation
+- quality checks during benchmarking
 
-## 3. Service decomposition
+## 4. Storage lifecycle model
 
-### 3.1 Embed service
+RecallLayer follows an LSM-like storage shape.
+
+### 4.1 Mutable layer
+The mutable layer is the online write buffer.
+
 Responsibilities:
+- accept recent writes quickly
+- expose recent visibility without requiring immediate sealing
+- record latest-write-wins state
+- hold tombstones before physical cleanup
 
-- convert documents / events / items into embeddings
-- manage embedding model versioning
-- normalize query and item vectors when required by the metric
+### 4.2 Sealed segments
+Sealed segments are immutable retrieval segments.
 
-Inputs:
-
-- raw content or upstream embedding vectors
-
-Outputs:
-
-- embedding vectors
-- embedding version metadata
-
-### 3.2 Quantize service
 Responsibilities:
+- store flushed retrieval state
+- support stable search surfaces
+- provide manifest-driven active visibility
+- serve as the durable queryable sealed layer
 
-- apply the shared transformation pipeline
-- generate compressed codes
-- generate residual correction data
-- write compressed data into the hot index format
+### 4.3 Manifest-driven active set
+The manifest defines which sealed segments are active.
 
-Inputs:
-
-- embedding vectors
-- quantizer configuration version
-
-Outputs:
-
-- compressed vector records
-- optional side statistics
-
-### 3.3 ANN retrieval service
 Responsibilities:
+- determine searchable sealed state
+- support segment replacement through compaction
+- give recovery a coherent sealed boundary
 
-- execute first-pass candidate generation against compressed vectors
-- support shard-aware search
-- support metadata-aware candidate restriction
+### 4.4 Replay boundary and recovery
+RecallLayer recovery is intended to:
+- load manifest-visible sealed state
+- replay only the write-log tail after the replay watermark
+- rebuild mutable state only for post-boundary writes
+- preserve coherent pre-restart vs post-restart query visibility
 
-Possible implementations:
-
-- compressed brute-force scan
-- IVF over compressed payloads
-- graph ANN with compressed node vectors
-
-Outputs:
-
-- top-N candidate ids
-- approximate scores
-- debug telemetry for evaluation
-
-### 3.4 Rerank service
-Responsibilities:
-
-- fetch higher-precision vector representations for candidates
-- compute exact or tighter similarity scores
-- optionally fuse vector scores with lexical or business signals
-
-Outputs:
-
-- final top-k results
-- rerank latency telemetry
-
-### 3.5 Compaction and maintenance service
-Responsibilities:
-
-- rebalance shards
-- rewrite segments
-- garbage-collect deleted vectors
-- migrate between quantizer versions
-- compact hot / warm / cold tiers
-
-## 4. Storage tiers
-
-### 4.1 Hot tier
-Stores:
-
-- compressed codes
-- residual correction bits
-- minimal routing metadata
-
-Media targets:
-
-- RAM
-- GPU memory for selected shards
-
-Goal:
-
-- maximize searchable corpus in fast memory
-
-### 4.2 Warm tier
-Stores:
-
-- fp16 or similar rerank vectors
-- recent or frequently accessed metadata
-
-Media targets:
-
-- NVMe / SSD
-
-Goal:
-
-- cheap access to rerank payloads without keeping everything in RAM
-
-### 4.3 Cold tier
-Stores:
-
-- fp32 originals if needed
-- source artifacts
-- archived segments
-
-Media targets:
-
-- object storage
-
-Goal:
-
-- durable retention and offline rebuild support
+### 4.5 Compaction
+Compaction is used to:
+- replace multiple older sealed segments with newer compacted sealed state
+- reduce stale storage debt
+- eventually clean up superseded or deleted rows physically
+- keep replay boundaries and active ownership coherent
 
 ## 5. Query path
 
-1. Receive query text or vector.
-2. Generate or validate the query embedding.
-3. Apply the same transformation path used by the compressed index.
-4. Search compressed shards for top-N candidates.
-5. Apply metadata filters before or during candidate generation where possible.
-6. Fetch higher-precision vectors for the candidate set.
-7. Rerank the candidate set.
-8. Return top-k results.
+The canonical RecallLayer query path is:
 
-### 5.1 Query path diagram
+1. receive query vector
+2. optionally apply retrieval filters
+3. search mutable state
+4. search active sealed segments
+5. merge and deduplicate candidates by `vector_id`
+6. enforce latest-write-wins visibility rules
+7. optionally rerank with higher-precision scoring
+8. return candidate ids and scores
 
-```text
-Query -> Embed -> Transform/Quant Helper -> Compressed Retrieval -> Top-N Candidates
-                                                              |
-                                                              v
-                                                    Higher Precision Fetch
-                                                              |
-                                                              v
-                                                          Rerank
-                                                              |
-                                                              v
-                                                            Top-K
-```
+### 5.1 Important visibility rule
+If mutable state contains a newer tombstone for a vector id, older sealed rows for that vector id should not remain query-visible.
 
-## 6. Ingestion path
+That rule matters because RecallLayer is intended to behave like a coherent retrieval subsystem, not a haunted pile of half-forgotten segment history.
 
-1. Accept item id, metadata, and vector.
-2. Validate embedding version and metric compatibility.
-3. Produce compressed representation.
-4. Write compressed record to hot-search storage.
-5. Write rerank representation to warm storage.
-6. Publish segment update / shard routing metadata.
+## 6. Integration architecture
 
-### 6.1 Design goal for ingestion
+RecallLayer is intended to be used beside an existing database-backed application.
 
-The ingestion pipeline should be online and incremental. Large rebuilds should be optional, not the default write path.
-
-## 7. Metadata filtering strategy
-
-Filtering is one of the places approximate systems get tangled.
-
-Recommended strategy:
-
-- partition by high-cardinality or very common filters only when it materially improves performance
-- maintain compact posting lists or bitmaps for common filter dimensions
-- intersect candidate sets with filters as early as practical
-- avoid reranking large filtered sets if compressed retrieval can prune first
-
-## 8. Baseline implementation recommendation
-
-For the first prototype, choose the simplest measurable architecture:
-
-### Recommended first cut
-
-- compressed columnar scan or simple shard scan
-- exact rerank on top 100 to 1000 candidates
-- offline benchmark harness plus a lightweight online write path
-
-Why this first:
-
-- easier to validate recall and latency
-- isolates compression quality from graph or IVF tuning complexity
-- creates a clean benchmark baseline for later ANN variants
-
-## 9. API sketch
-
-### 9.1 Write API
+### Canonical pattern
 
 ```text
-PUT /vectors/{id}
-{
-  "embedding": [...],
-  "metadata": {...},
-  "embedding_version": "v1"
-}
+User Query
+   -> Application service
+   -> query embedding
+   -> RecallLayer search
+   -> candidate ids + scores
+   -> hydrate rows from Postgres
+   -> apply final business logic
+   -> return results
 ```
 
-### 9.2 Query API
+### Canonical write pattern
 
 ```text
-POST /query
-{
-  "embedding": [...],
-  "top_k": 20,
-  "candidate_k": 500,
-  "filters": {...},
-  "rerank": true
-}
+Application write
+   -> commit source row in Postgres
+   -> generate embedding
+   -> upsert retrieval state into RecallLayer
+   -> RecallLayer exposes visibility through mutable state
+   -> flush later seals state into active segments
 ```
 
-### 9.3 Explain API
+## 7. API shape
 
-```text
-GET /query/{request_id}/trace
-```
+RecallLayer should expose write/query surfaces shaped around sidecar integration.
 
-Used for:
+### 7.1 Write API
+The write API should accept:
+- `vector_id`
+- embedding payload
+- retrieval metadata
+- embedding version
 
-- approximate score inspection
-- rerank score inspection
-- latency breakdowns
-- debugging recall regressions
+### 7.2 Query API
+The query API should accept:
+- query embedding
+- `top_k`
+- optional candidate controls
+- optional retrieval filters
+- optional trace/debug mode
 
-## 10. Observability
+### 7.3 Query output
+The query API should return:
+- candidate ids
+- scores
+- optional retrieval metadata
+- optional trace data for diagnostics
 
-Track at minimum:
+The query API should **not** be treated as the final source of user-facing application objects.
+Hydration remains the job of the application and the host database.
 
-- recall@k against a truth set
-- p50 / p95 / p99 query latency
-- compressed index memory footprint
-- rerank fetch latency
-- ingestion throughput
-- shard imbalance
+## 8. Deployment shapes
+
+### 8.1 Embedded mode
+Good for:
+- local development
+- benchmarks
+- simple demos
+- direct Python usage
+
+### 8.2 HTTP sidecar service
+Good for:
+- realistic application deployments
+- language-agnostic integration
+- operational separation
+- service-level observability
+
+### Recommended approach
+Support both, but treat **HTTP sidecar deployment** as the canonical production-shaped story.
+
+## 9. Consistency stance
+
+RecallLayer should currently be described as an **eventually consistent retrieval subsystem** relative to the host database.
+
+That means:
+- the host DB remains the truth source
+- RecallLayer is kept up to date by application writes or sync workflows
+- cross-system atomicity is not guaranteed today
+- final hydration and visibility validation remain application concerns
+
+## 10. Observability priorities
+
+RecallLayer should measure at least:
+- recall@k
+- p50 / p95 / p99 latency
+- memory footprint of retrieval state
+- rerank cost
 - filter selectivity
-- compression ratio by segment
+- lifecycle correctness under flush / recovery / compaction
+- mismatch and repair behavior under sidecar integration
 
-## 11. Failure modes and mitigations
+## 11. Near-term architectural priorities
 
-### 11.1 Recall drop from overcompression
-Mitigation:
+To make RecallLayer feel less like a prototype and more like an implementable subsystem, the next architecture-level goals should be:
 
-- tune bitrate
-- increase candidate_k
-- preserve rerank stage
-- benchmark per corpus
+1. define the integration contract clearly
+2. establish the canonical Postgres + RecallLayer architecture
+3. add black-box integration tests
+4. add a minimal sidecar example flow
+5. continue tightening lifecycle invariants for updates, deletes, restart, and compaction
 
-### 11.2 Filter-heavy query slowdown
-Mitigation:
+## 12. Summary
 
-- add bitmap acceleration
-- co-partition specific workloads
-- add filtered shard routing
+RecallLayer should be understood as:
+- a retrieval-optimized vector subsystem
+- a sidecar beside an existing application database
+- a candidate-generation engine with explicit lifecycle behavior
 
-### 11.3 Embedding model migrations
-Mitigation:
+The cleanest mental model is:
 
-- version embeddings and quantizers independently
-- support parallel indexes during migration
-- rebuild incrementally
-
-### 11.4 Operational complexity
-Mitigation:
-
-- start with secondary index deployment
-- keep exact baseline path available for evaluation
-
-## 12. Suggested repository evolution
-
-Next artifacts to add:
-
-1. `docs/benchmark-plan.md`
-2. `docs/data-model.md`
-3. `docs/api.md`
-4. `src/` prototype layout
-5. evaluation scripts and sample corpora adapters
-
-## 13. Summary
-
-This system should treat compressed search as the fast front door and higher-precision reranking as the quality lock on the inner gate.
-
-That keeps the design practical:
-
-- approximation where it is safe
-- precision where it matters
-- online writes
-- measurable tradeoffs
+> **Postgres keeps the truth. RecallLayer keeps the retrieval index. The application coordinates both.**

@@ -17,6 +17,13 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
     segment results and applies exact metadata filters.
     """
 
+    def _tombstoned_vector_ids(self) -> set[str]:
+        return {
+            vector_id
+            for vector_id, entry in self.mutable_buffer._entries.items()
+            if entry.record.is_deleted
+        }
+
     def _segment_paths(self, *, shard_id: str = "shard-0") -> list[str]:
         shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
         if shard_manifest is None or not shard_manifest.active_segment_ids:
@@ -43,10 +50,13 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
             return []
 
         filter_fn = build_filter_fn(filters or {})
+        tombstoned_ids = self._tombstoned_vector_ids()
         candidates: list[Candidate] = []
         for path in self._segment_paths(shard_id=shard_id):
             reader = SegmentReader(path)
             for indexed in reader.iter_indexed_vectors():
+                if indexed.vector_id in tombstoned_ids:
+                    continue
                 if candidate_ids is not None and indexed.vector_id not in candidate_ids:
                     continue
                 if not filter_fn(indexed.metadata):
@@ -70,10 +80,13 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
             return []
 
         filter_fn = build_filter_fn(filters or {})
+        tombstoned_ids = self._tombstoned_vector_ids()
         candidates: list[Candidate] = []
         for path in self._segment_paths(shard_id=shard_id):
             reader = SegmentReader(path)
             for indexed in reader.iter_indexed_vectors():
+                if indexed.vector_id in tombstoned_ids:
+                    continue
                 if candidate_ids is not None and indexed.vector_id not in candidate_ids:
                     continue
                 if not filter_fn(indexed.metadata):
