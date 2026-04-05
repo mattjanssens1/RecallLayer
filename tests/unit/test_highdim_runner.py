@@ -1,4 +1,4 @@
-from turboquant_db.benchmark.highdim_runner import run_highdim_benchmark
+from recalllayer.benchmark.highdim_runner import run_highdim_benchmark
 
 
 def test_highdim_benchmark_runner_returns_rows() -> None:

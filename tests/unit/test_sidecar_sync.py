@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from turboquant_db.sidecar import InMemoryPostgres, RecallLayerSidecar
-from turboquant_db.sidecar_sync import (
+from recalllayer.sidecar import InMemoryPostgres, RecallLayerSidecar
+from recalllayer.sidecar_sync import (
     InMemorySidecarSyncOutbox,
     RecallLayerSyncWorker,
     apply_host_unpublish_with_outbox,

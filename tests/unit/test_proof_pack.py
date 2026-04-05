@@ -1,4 +1,4 @@
-from turboquant_db.benchmark.proof_pack import build_proof_rows, render_proof_markdown
+from recalllayer.benchmark.proof_pack import build_proof_rows, render_proof_markdown
 
 
 def test_proof_pack_builds_rows_with_exact_baselines() -> None:

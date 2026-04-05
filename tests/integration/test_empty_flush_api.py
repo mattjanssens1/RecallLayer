@@ -2,8 +2,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from turboquant_db.api.showcase_server_observed_plus import create_observed_plus_showcase_app
-from turboquant_db.api.showcase_server_traced import create_traced_showcase_app
+from recalllayer.api.showcase_server_observed_plus import create_observed_plus_showcase_app
+from recalllayer.api.showcase_server_traced import create_traced_showcase_app
 
 
 def test_traced_api_empty_flush_is_noop(tmp_path: Path) -> None:

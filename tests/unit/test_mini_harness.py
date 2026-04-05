@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from turboquant_db.benchmark.mini_harness import run_mini_harness
-from turboquant_db.engine.local_db import LocalVectorDatabase
+from recalllayer.benchmark.mini_harness import run_mini_harness
+from recalllayer.engine.local_db import LocalVectorDatabase
 
 
 def test_mini_harness_runs_on_local_db(tmp_path: Path) -> None:

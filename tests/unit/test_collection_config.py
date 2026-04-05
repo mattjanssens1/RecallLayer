@@ -1,4 +1,4 @@
-from turboquant_db.model.collection import CollectionConfig, CollectionState, DistanceMetric
+from recalllayer.model.collection import CollectionConfig, CollectionState, DistanceMetric
 
 
 def test_collection_config_defaults() -> None:

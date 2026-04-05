@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from turboquant_db.benchmark.mini_harness import run_mini_harness
-from turboquant_db.benchmark.report import BenchmarkSummary, write_summary
-from turboquant_db.engine.showcase_rerank_db import ShowcaseRerankDatabase
+from recalllayer.benchmark.mini_harness import run_mini_harness
+from recalllayer.benchmark.report import BenchmarkSummary, write_summary
+from recalllayer.engine.showcase_rerank_db import ShowcaseRerankDatabase
 
 
 def main() -> None:

@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from turboquant_db.api.app import create_app
+from recalllayer.api.app import create_app
 
 
 def test_traced_showcase_api_repeated_flush_cycles() -> None:

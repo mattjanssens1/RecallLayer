@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from turboquant_db.engine.mutable_buffer import MutableBuffer
-from turboquant_db.engine.sealed_segments import SegmentBuilder, SegmentReader
-from turboquant_db.quantization.scalar import ScalarQuantizer
+from recalllayer.engine.mutable_buffer import MutableBuffer
+from recalllayer.engine.sealed_segments import SegmentBuilder, SegmentReader
+from recalllayer.quantization.scalar import ScalarQuantizer
 
 
 def test_segment_builder_and_reader_round_trip(tmp_path: Path) -> None:

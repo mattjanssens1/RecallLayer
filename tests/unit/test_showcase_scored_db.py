@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from turboquant_db.engine.showcase_scored_db import ShowcaseScoredDatabase
+from recalllayer.engine.showcase_scored_db import ShowcaseScoredDatabase
 
 
 def test_showcase_scored_db_returns_scores_and_metadata(tmp_path: Path) -> None:

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from turboquant_db.engine.inspected_db import InspectedShowcaseDatabase
-from turboquant_db.filters import FilterPlanner
+from recalllayer.engine.inspected_db import InspectedShowcaseDatabase
+from recalllayer.filters import FilterPlanner
 
 
 def test_inspected_db_returns_real_counts_for_mixed_mutable_and_sealed_hits(tmp_path: Path) -> None:

@@ -1,7 +1,7 @@
-from turboquant_db.api import app as default_app_module
-from turboquant_db.api import app_best as best_app_module
-from turboquant_db.api import app_inspected as inspected_app_module
-from turboquant_db.api import app_measured as measured_app_module
+from recalllayer.api import app as default_app_module
+from recalllayer.api import app_best as best_app_module
+from recalllayer.api import app_inspected as inspected_app_module
+from recalllayer.api import app_measured as measured_app_module
 
 
 def test_default_and_best_app_share_observed_plus_entrypoint() -> None:

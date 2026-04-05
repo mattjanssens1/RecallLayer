@@ -1,6 +1,6 @@
 import pytest
 
-from turboquant_db.sidecar import PsycopgPostgresRepository
+from recalllayer.sidecar import PsycopgPostgresRepository
 
 
 def test_psycopg_postgres_repository_requires_optional_dependency() -> None:

@@ -1,5 +1,5 @@
-from turboquant_db.filters.indexes import FilterIndexes, MetadataRow
-from turboquant_db.filters.planner import FilterPlanner, FilterStrategy
+from recalllayer.filters.indexes import FilterIndexes, MetadataRow
+from recalllayer.filters.planner import FilterPlanner, FilterStrategy
 
 
 def _rows() -> list[MetadataRow]:

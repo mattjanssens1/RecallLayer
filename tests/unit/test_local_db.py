@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from turboquant_db.engine.local_db import LocalVectorDatabase
+from recalllayer.engine.local_db import LocalVectorDatabase
 
 
 def test_local_db_upsert_query_flush_and_recover(tmp_path: Path) -> None:

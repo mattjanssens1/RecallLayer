@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from turboquant_db.engine.write_log import WriteLog, WriteOperation
+from recalllayer.engine.write_log import WriteLog, WriteOperation
 
 
 def test_write_log_replays_upsert_and_delete(tmp_path: Path) -> None:

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from turboquant_db.engine.showcase_db import ShowcaseLocalDatabase
-from turboquant_db.model.manifest import SegmentState
+from recalllayer.engine.showcase_db import ShowcaseLocalDatabase
+from recalllayer.model.manifest import SegmentState
 
 
 def test_empty_flush_is_noop_under_target_contract(tmp_path: Path) -> None:

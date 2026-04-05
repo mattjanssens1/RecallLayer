@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from turboquant_db.engine.query_trace_export import build_query_trace_payload
+from recalllayer.engine.query_trace_export import build_query_trace_payload
 
 
 @dataclass(slots=True)

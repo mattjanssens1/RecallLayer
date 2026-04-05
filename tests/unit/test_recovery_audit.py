@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from turboquant_db.engine.recovery_audit import build_recovery_audit
-from turboquant_db.engine.write_log import WriteLog
+from recalllayer.engine.recovery_audit import build_recovery_audit
+from recalllayer.engine.write_log import WriteLog
 
 
 def test_build_recovery_audit_groups_entries_by_collection(tmp_path: Path) -> None:

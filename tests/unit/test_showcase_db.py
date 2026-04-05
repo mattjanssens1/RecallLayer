@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from turboquant_db.engine.showcase_db import ShowcaseLocalDatabase
+from recalllayer.engine.showcase_db import ShowcaseLocalDatabase
 
 
 def test_showcase_db_hybrid_query_and_filter(tmp_path: Path) -> None:

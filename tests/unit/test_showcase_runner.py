@@ -1,4 +1,4 @@
-from turboquant_db.benchmark.showcase_runner import run_showcase_benchmark
+from recalllayer.benchmark.showcase_runner import run_showcase_benchmark
 
 
 def test_showcase_benchmark_runner_returns_rows() -> None:

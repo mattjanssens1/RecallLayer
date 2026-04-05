@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-from turboquant_db.api.schemas import QueryRequest
-from turboquant_db.api.showcase_query_api import QuerySurfaceRunner, build_mode_name, build_scored_query_response, count_hit_sources, segment_ids_for_paths
+from recalllayer.api.schemas import QueryRequest
+from recalllayer.api.showcase_query_api import QuerySurfaceRunner, build_mode_name, build_scored_query_response, count_hit_sources, segment_ids_for_paths
 
 
 class _FakeMutableEntry:

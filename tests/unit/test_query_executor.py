@@ -1,6 +1,6 @@
-from turboquant_db.engine.mutable_buffer import MutableBuffer
-from turboquant_db.engine.query_executor import QueryExecutor
-from turboquant_db.quantization.scalar import ScalarQuantizer
+from recalllayer.engine.mutable_buffer import MutableBuffer
+from recalllayer.engine.query_executor import QueryExecutor
+from recalllayer.quantization.scalar import ScalarQuantizer
 
 
 def test_query_executor_exact_and_compressed_agree_on_simple_case() -> None:

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from turboquant_db.engine.showcase_db import ShowcaseLocalDatabase
+from recalllayer.engine.showcase_db import ShowcaseLocalDatabase
 
 
 def test_recover_after_single_flush_replays_only_post_flush_writes_under_target_contract(tmp_path: Path) -> None:

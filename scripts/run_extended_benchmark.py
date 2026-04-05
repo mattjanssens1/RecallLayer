@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from turboquant_db.benchmark.comparison import ComparisonRow, render_markdown_table
-from turboquant_db.benchmark.generated_fixtures import medium_synthetic_fixture
-from turboquant_db.benchmark.mini_harness import run_mini_harness
-from turboquant_db.engine.showcase_scored_db import ShowcaseScoredDatabase
-from turboquant_db.quantization.experiments import NormalizedScalarQuantizer, ShiftedTurboQuantAdapter
-from turboquant_db.quantization.scalar import ScalarQuantizer
-from turboquant_db.quantization.turboquant_adapter import TurboQuantAdapter
+from recalllayer.benchmark.comparison import ComparisonRow, render_markdown_table
+from recalllayer.benchmark.generated_fixtures import medium_synthetic_fixture
+from recalllayer.benchmark.mini_harness import run_mini_harness
+from recalllayer.engine.showcase_scored_db import ShowcaseScoredDatabase
+from recalllayer.quantization.experiments import NormalizedScalarQuantizer, ShiftedTurboQuantAdapter
+from recalllayer.quantization.scalar import ScalarQuantizer
+from recalllayer.quantization.turboquant_adapter import TurboQuantAdapter
 
 
 def main() -> None:

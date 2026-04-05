@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from turboquant_db.api.app_inspected import create_app
+from recalllayer.api.app_inspected import create_app
 
 
 def test_inspected_api_returns_breakdown_fields() -> None:

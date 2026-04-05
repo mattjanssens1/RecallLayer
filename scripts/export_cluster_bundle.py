@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from turboquant_db.benchmark.cluster_runner import run_cluster_benchmark
-from turboquant_db.benchmark.comparison import render_markdown_table
-from turboquant_db.benchmark.diagnostics import BenchmarkDiagnostics, write_diagnostics
+from recalllayer.benchmark.cluster_runner import run_cluster_benchmark
+from recalllayer.benchmark.comparison import render_markdown_table
+from recalllayer.benchmark.diagnostics import BenchmarkDiagnostics, write_diagnostics
 
 
 def main() -> None:

@@ -1,4 +1,4 @@
-from turboquant_db.benchmark.xlarge_runner import run_xlarge_benchmark
+from recalllayer.benchmark.xlarge_runner import run_xlarge_benchmark
 
 
 def test_xlarge_benchmark_runner_returns_rows() -> None:

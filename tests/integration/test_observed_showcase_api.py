@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from turboquant_db.api.app_observed import create_app
+from recalllayer.api.app_observed import create_app
 
 
 def test_observed_showcase_api_returns_diagnostics() -> None:

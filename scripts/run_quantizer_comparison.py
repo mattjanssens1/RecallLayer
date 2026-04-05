@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from turboquant_db.benchmark.comparison import render_markdown_table
-from turboquant_db.benchmark.quantizer_compare import run_quantizer_comparison
+from recalllayer.benchmark.comparison import render_markdown_table
+from recalllayer.benchmark.quantizer_compare import run_quantizer_comparison
 
 
 def main() -> None:

@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from turboquant_db.api.app_best import create_app
+from recalllayer.api.app_best import create_app
 
 
 def test_best_api_trace_latency_and_candidate_estimate() -> None:

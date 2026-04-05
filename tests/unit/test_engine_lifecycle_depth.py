@@ -12,13 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from turboquant_db.engine.compaction_planner import (
+from recalllayer.engine.compaction_planner import (
     CompactionPlanner,
     compaction_eligibility_score,
 )
-from turboquant_db.engine.compactor import LocalSegmentCompactor
-from turboquant_db.engine.showcase_db import ShowcaseLocalDatabase
-from turboquant_db.model.manifest import SegmentManifest, SegmentState
+from recalllayer.engine.compactor import LocalSegmentCompactor
+from recalllayer.engine.showcase_db import ShowcaseLocalDatabase
+from recalllayer.model.manifest import SegmentManifest, SegmentState
 
 
 # ---------------------------------------------------------------------------

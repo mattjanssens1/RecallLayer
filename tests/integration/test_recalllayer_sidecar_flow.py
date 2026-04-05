@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from turboquant_db.sidecar import InMemoryPostgres, RecallLayerSidecar, build_demo_state
+from recalllayer.sidecar import InMemoryPostgres, RecallLayerSidecar, build_demo_state
 
 
 def test_sidecar_flow_returns_candidate_ids_then_hydrates_from_host_db(tmp_path: Path) -> None:

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from turboquant_db.engine.showcase_db import ShowcaseLocalDatabase
-from turboquant_db.model.manifest import SegmentState
+from recalllayer.engine.showcase_db import ShowcaseLocalDatabase
+from recalllayer.model.manifest import SegmentState
 
 
 def test_flush_current_contract_creates_active_segment_and_preserves_write_epoch_bounds(tmp_path: Path) -> None:

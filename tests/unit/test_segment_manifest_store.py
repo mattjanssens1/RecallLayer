@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from turboquant_db.engine.segment_manifest_store import SegmentManifestStore
-from turboquant_db.model.manifest import SegmentManifest, SegmentState
+from recalllayer.engine.segment_manifest_store import SegmentManifestStore
+from recalllayer.model.manifest import SegmentManifest, SegmentState
 
 
 def test_segment_manifest_store_round_trips_manifest(tmp_path: Path) -> None:

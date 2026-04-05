@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pprint import pprint
 
-from turboquant_db.sidecar import build_demo_state
+from recalllayer.sidecar import build_demo_state
 
 
 def main() -> None:

@@ -1,4 +1,4 @@
-from turboquant_db.engine.mutable_buffer import MutableBuffer
+from recalllayer.engine.mutable_buffer import MutableBuffer
 
 
 def test_latest_write_epoch_wins_for_upsert() -> None:
