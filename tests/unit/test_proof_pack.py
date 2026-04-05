@@ -9,7 +9,11 @@ def test_proof_pack_builds_rows_with_exact_baselines() -> None:
     assert exact_rows
     assert all(row.recall_at_1 == 1.0 for row in exact_rows)
     assert all(row.recall_at_10 == 1.0 for row in exact_rows)
+    assert all(row.backend == "scalar-quantizer" for row in rows)
 
     markdown = render_proof_markdown(rows)
-    assert "| Fixture | Query path | Backend | Latency ms | Recall@1 | Recall@10 | Note |" in markdown
-    assert "turboquant-adapter" in markdown
+    assert (
+        "| Fixture | Query path | Backend | Latency ms | Recall@1 | Recall@10 | "
+        "Cache hit rate | File reads | Decode loads | Candidates | Rerank ms | Note |" in markdown
+    )
+    assert "compressed-reranked-hybrid" in markdown

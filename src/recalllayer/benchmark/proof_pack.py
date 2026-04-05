@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from time import perf_counter
-from typing import Callable
 
 from recalllayer.benchmark.cluster_fixtures import clustered_fixture
 from recalllayer.benchmark.fixtures import tiny_fixture
-from recalllayer.benchmark.metrics import average_latency_ms, recall_at_k
+from recalllayer.benchmark.mini_harness import HarnessPathResult, run_mini_harness
 from recalllayer.engine.showcase_scored_db import ShowcaseScoredDatabase
 from recalllayer.quantization.scalar import ScalarQuantizer
-from recalllayer.quantization.turboquant_adapter import TurboQuantAdapter
 
 
 @dataclass(slots=True)
@@ -20,17 +17,29 @@ class ProofRow:
     latency_ms: float
     recall_at_1: float
     recall_at_10: float
+    cache_hit_rate: float
+    file_reads: int
+    decode_loads: int
+    candidate_generation_count: float
+    rerank_latency_ms: float
     note: str
 
 
 def render_proof_markdown(rows: list[ProofRow]) -> str:
     lines = [
-        "| Fixture | Query path | Backend | Latency ms | Recall@1 | Recall@10 | Note |",
-        "|---|---|---|---:|---:|---:|---|",
+        (
+            "| Fixture | Query path | Backend | Latency ms | Recall@1 | Recall@10 | "
+            "Cache hit rate | File reads | Decode loads | Candidates | Rerank ms | Note |"
+        ),
+        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for row in rows:
         lines.append(
-            f"| {row.fixture_name} | {row.query_path} | {row.backend} | {row.latency_ms:.3f} | {row.recall_at_1:.3f} | {row.recall_at_10:.3f} | {row.note} |"
+            f"| {row.fixture_name} | {row.query_path} | {row.backend} | "
+            f"{row.latency_ms:.3f} | {row.recall_at_1:.3f} | {row.recall_at_10:.3f} | "
+            f"{row.cache_hit_rate:.3f} | {row.file_reads} | {row.decode_loads} | "
+            f"{row.candidate_generation_count:.1f} | {row.rerank_latency_ms:.3f} | "
+            f"{row.note} |"
         )
     return "\n".join(lines)
 
@@ -43,99 +52,62 @@ def build_proof_rows(root_prefix: str = ".proof_pack") -> list[ProofRow]:
 
     rows: list[ProofRow] = []
     for fixture_index, (dataset, top_k) in enumerate(fixture_specs):
-        exact_db = ShowcaseScoredDatabase(
-            collection_id=f"{dataset.name}-exact-{fixture_index}",
-            root_dir=f"{root_prefix}-exact-{fixture_index}",
+        db = ShowcaseScoredDatabase(
+            collection_id=f"{dataset.name}-scalar-{fixture_index}",
+            root_dir=f"{root_prefix}-{fixture_index}",
             quantizer=ScalarQuantizer(),
         )
         for item in dataset.items:
-            exact_db.upsert(vector_id=item.vector_id, embedding=item.embedding, metadata=item.metadata)
-        exact_db.flush_mutable(segment_id="seg-1", generation=1)
+            db.upsert(vector_id=item.vector_id, embedding=item.embedding, metadata=item.metadata)
+        db.flush_mutable(segment_id="seg-1", generation=1)
 
-        exact_ids, exact_latency_ms = _run_path(
-            exact_db,
-            dataset.queries,
-            top_k=top_k,
-            query_fn=lambda query: exact_db.query_exact_hybrid_hits(query, top_k=top_k),
+        result = run_mini_harness(db, dataset.queries, top_k=top_k)
+        rows.append(
+            _row_from_result(
+                dataset.name, "scalar-quantizer", result.exact, "Reference exact hybrid path."
+            )
         )
         rows.append(
-            ProofRow(
-                fixture_name=dataset.name,
-                query_path="exact-hybrid",
-                backend="exact-baseline",
-                latency_ms=exact_latency_ms,
-                recall_at_1=1.0,
-                recall_at_10=1.0,
-                note="Reference path for recall comparison.",
+            _row_from_result(
+                dataset.name,
+                "scalar-quantizer",
+                result.compressed,
+                "Canonical compressed hybrid path.",
             )
         )
-
-        backend_specs = [
-            (ScalarQuantizer(), "scalar-quantizer", "Measured compressed scan baseline."),
-            (TurboQuantAdapter(), "turboquant-adapter", "Adapter-based placeholder, not full-fidelity TurboQuant."),
-        ]
-
-        for backend_index, (quantizer, backend_name, backend_note) in enumerate(backend_specs):
-            db = ShowcaseScoredDatabase(
-                collection_id=f"{dataset.name}-{backend_name}-{backend_index}",
-                root_dir=f"{root_prefix}-{fixture_index}-{backend_index}",
-                quantizer=quantizer,
-            )
-            for item in dataset.items:
-                db.upsert(vector_id=item.vector_id, embedding=item.embedding, metadata=item.metadata)
-            db.flush_mutable(segment_id="seg-1", generation=1)
-
-            compressed_ids, compressed_latency_ms = _run_path(
-                db,
-                dataset.queries,
-                top_k=top_k,
-                query_fn=lambda query: db.query_compressed_hybrid_hits(query, top_k=top_k),
-            )
+        if result.reranked is not None:
             rows.append(
-                ProofRow(
-                    fixture_name=dataset.name,
-                    query_path="compressed-hybrid",
-                    backend=backend_name,
-                    latency_ms=compressed_latency_ms,
-                    recall_at_1=recall_at_k(expected_ids=exact_ids, actual_ids=compressed_ids, k=1),
-                    recall_at_10=recall_at_k(expected_ids=exact_ids, actual_ids=compressed_ids, k=min(10, top_k)),
-                    note=backend_note,
-                )
-            )
-
-            reranked_ids, reranked_latency_ms = _run_path(
-                db,
-                dataset.queries,
-                top_k=top_k,
-                query_fn=lambda query: db.query_compressed_reranked_hybrid_hits(query, top_k=top_k),
-            )
-            rows.append(
-                ProofRow(
-                    fixture_name=dataset.name,
-                    query_path="compressed-reranked-hybrid",
-                    backend=backend_name,
-                    latency_ms=reranked_latency_ms,
-                    recall_at_1=recall_at_k(expected_ids=exact_ids, actual_ids=reranked_ids, k=1),
-                    recall_at_10=recall_at_k(expected_ids=exact_ids, actual_ids=reranked_ids, k=min(10, top_k)),
-                    note=f"{backend_note} Includes rerank over compressed candidates.",
+                _row_from_result(
+                    dataset.name,
+                    "scalar-quantizer",
+                    result.reranked,
+                    "Canonical compressed+rereank path over cached sealed payloads.",
                 )
             )
 
     return rows
 
 
-def _run_path(
-    db: ShowcaseScoredDatabase,
-    queries: list[list[float]],
-    *,
-    top_k: int,
-    query_fn: Callable[[list[float]], list[object]],
-) -> tuple[list[str], float]:
-    ids: list[str] = []
-    samples_ms: list[float] = []
-    for query in queries:
-        start = perf_counter()
-        hits = query_fn(query)
-        samples_ms.append((perf_counter() - start) * 1000.0)
-        ids.extend(hit.vector_id for hit in hits[:top_k])
-    return ids, average_latency_ms(samples_ms)
+def _row_from_result(
+    fixture_name: str, backend: str, result: HarnessPathResult, note: str
+) -> ProofRow:
+    indexed_cache = result.cache_stats.get("indexed_cache", {})
+    decoded_cache = result.cache_stats.get("decoded_cache", {})
+    reads = result.cache_stats.get("segment_reads", {})
+    total_hits = float(indexed_cache.get("hits", 0)) + float(decoded_cache.get("hits", 0))
+    total_misses = float(indexed_cache.get("misses", 0)) + float(decoded_cache.get("misses", 0))
+    denominator = total_hits + total_misses
+    return ProofRow(
+        fixture_name=fixture_name,
+        query_path=result.path_name,
+        backend=backend,
+        latency_ms=result.latency_ms,
+        recall_at_1=result.recall_at_1,
+        recall_at_10=result.recall_at_10,
+        cache_hit_rate=(total_hits / denominator) if denominator else 0.0,
+        file_reads=int(reads.get("file_reads", 0)),
+        decode_loads=int(reads.get("decode_loads", 0)),
+        candidate_generation_count=float(result.trace.get("candidate_generation_count", 0.0)),
+        rerank_latency_ms=float(result.trace.get("rerank_latency_ms", 0.0)),
+        note=note,
+    )

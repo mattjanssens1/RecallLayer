@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -8,8 +9,12 @@ from recalllayer.engine.manifest_validation import raise_for_manifest_issues, va
 from recalllayer.engine.mutable_buffer import MutableBuffer
 from recalllayer.engine.query_executor import QueryExecutor
 from recalllayer.engine.recovery_manager import RecoveryManager
-from recalllayer.engine.sealed_segments import LocalSegmentStore, SegmentBuilder
-from recalllayer.engine.segment_gc_executor import SegmentGarbageCollectionExecution, SegmentGarbageCollectionExecutor
+from recalllayer.engine.sealed_segments import LocalSegmentStore, SegmentBuilder, SegmentReadStats
+from recalllayer.engine.segment_cache import SegmentReadCache
+from recalllayer.engine.segment_gc_executor import (
+    SegmentGarbageCollectionExecution,
+    SegmentGarbageCollectionExecutor,
+)
 from recalllayer.engine.segment_manifest_store import SegmentManifestStore
 from recalllayer.engine.write_log import DurabilityMode, WriteLog
 from recalllayer.model.manifest import SegmentState, ShardManifest
@@ -30,6 +35,8 @@ class LocalVectorDatabase:
         quantizer: Quantizer | None = None,
         flush_threshold: int | None = None,
         durability_mode: DurabilityMode = DurabilityMode.MEMORY,
+        segment_cache_size: int = 8,
+        enable_segment_cache: bool = True,
     ) -> None:
         self.collection_id = collection_id
         self.root_dir = Path(root_dir)
@@ -37,16 +44,26 @@ class LocalVectorDatabase:
         self.embedding_version = embedding_version
         self.quantizer_version = quantizer_version
         self.quantizer = quantizer or ScalarQuantizer()
+        self.enable_segment_cache = enable_segment_cache
 
         self.mutable_buffer = MutableBuffer(collection_id=collection_id)
-        self.write_log = WriteLog(self.root_dir / collection_id / "write_log.jsonl", durability_mode=durability_mode)
+        self.write_log = WriteLog(
+            self.root_dir / collection_id / "write_log.jsonl", durability_mode=durability_mode
+        )
         self.durability_mode = durability_mode
         self.manifest_store = ManifestStore(self.root_dir / "manifests")
         self.segment_manifest_store = SegmentManifestStore(self.root_dir / "segment-manifests")
         self.segment_store = LocalSegmentStore(self.root_dir / "segments")
         self.segment_builder = SegmentBuilder(self.root_dir / "segments", quantizer=self.quantizer)
-        self.recovery_manager = RecoveryManager(write_log=self.write_log, mutable_buffer=self.mutable_buffer)
-        self.query_executor = QueryExecutor(mutable_buffer=self.mutable_buffer, quantizer=self.quantizer)
+        self.recovery_manager = RecoveryManager(
+            write_log=self.write_log, mutable_buffer=self.mutable_buffer
+        )
+        self.query_executor = QueryExecutor(
+            mutable_buffer=self.mutable_buffer, quantizer=self.quantizer
+        )
+        self.segment_cache = SegmentReadCache(segment_cache_size)
+        self.decoded_segment_cache = SegmentReadCache(segment_cache_size)
+        self.segment_read_stats = SegmentReadStats()
         self.flush_threshold = flush_threshold
 
         # Multi-shard support: per-shard mutable buffers and query executors.
@@ -58,7 +75,14 @@ class LocalVectorDatabase:
         self._write_epoch = self.mutable_buffer.watermark()
         self._auto_flush_segment_counter = 0
 
-    def upsert(self, *, vector_id: str, embedding: list[float], metadata: dict[str, object] | None = None, shard_id: str = "shard-0") -> int:  # noqa: E501
+    def upsert(
+        self,
+        *,
+        vector_id: str,
+        embedding: list[float],
+        metadata: dict[str, object] | None = None,
+        shard_id: str = "shard-0",
+    ) -> int:  # noqa: E501
         self._write_epoch += 1
         self.write_log.append_upsert(
             collection_id=self.collection_id,
@@ -97,7 +121,9 @@ class LocalVectorDatabase:
         if shard_id not in self._shard_buffers:
             buf = MutableBuffer(collection_id=self.collection_id)
             self._shard_buffers[shard_id] = buf
-            self._shard_query_executors[shard_id] = QueryExecutor(mutable_buffer=buf, quantizer=self.quantizer)
+            self._shard_query_executors[shard_id] = QueryExecutor(
+                mutable_buffer=buf, quantizer=self.quantizer
+            )
             self._shard_auto_flush_counters[shard_id] = 0
         return self._shard_buffers[shard_id]
 
@@ -111,7 +137,9 @@ class LocalVectorDatabase:
         buf = self._get_mutable_buffer(shard_id)
         mutable_count = len(buf.all_entries())
         if mutable_count >= self.flush_threshold:
-            self._shard_auto_flush_counters[shard_id] = self._shard_auto_flush_counters.get(shard_id, 0) + 1
+            self._shard_auto_flush_counters[shard_id] = (
+                self._shard_auto_flush_counters.get(shard_id, 0) + 1
+            )
             counter = self._shard_auto_flush_counters[shard_id]
             self._auto_flush_segment_counter = counter  # keep compat attr in sync for shard-0
             self.flush_mutable(
@@ -128,7 +156,9 @@ class LocalVectorDatabase:
         segment_manifests = self.segment_manifest_store.list_manifests(
             collection_id=self.collection_id, shard_id=shard_id
         )
-        shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
+        shard_manifest = self.manifest_store.load(
+            collection_id=self.collection_id, shard_id=shard_id
+        )
         if shard_manifest is None:
             return None
         active_ids = set(shard_manifest.active_segment_ids)
@@ -151,13 +181,32 @@ class LocalVectorDatabase:
             return None
         return 1.0 - fraction
 
-    def query_exact(self, query_vector: list[float], *, top_k: int, shard_id: str = "shard-0") -> list[str]:
-        return [item.vector_id for item in self._get_query_executor(shard_id).search_exact(query_vector, top_k=top_k)]
+    def query_exact(
+        self, query_vector: list[float], *, top_k: int, shard_id: str = "shard-0"
+    ) -> list[str]:
+        return [
+            item.vector_id
+            for item in self._get_query_executor(shard_id).search_exact(query_vector, top_k=top_k)
+        ]
 
-    def query_compressed(self, query_vector: list[float], *, top_k: int, shard_id: str = "shard-0") -> list[str]:
-        return [item.vector_id for item in self._get_query_executor(shard_id).search_compressed(query_vector, top_k=top_k)]
+    def query_compressed(
+        self, query_vector: list[float], *, top_k: int, shard_id: str = "shard-0"
+    ) -> list[str]:
+        return [
+            item.vector_id
+            for item in self._get_query_executor(shard_id).search_compressed(
+                query_vector, top_k=top_k
+            )
+        ]
 
-    def flush_mutable(self, *, shard_id: str = "shard-0", segment_id: str = "seg-0", generation: int = 1, truncate_write_log: bool = False) -> ShardManifest | None:  # noqa: E501
+    def flush_mutable(
+        self,
+        *,
+        shard_id: str = "shard-0",
+        segment_id: str = "seg-0",
+        generation: int = 1,
+        truncate_write_log: bool = False,
+    ) -> ShardManifest | None:  # noqa: E501
         buf = self._get_mutable_buffer(shard_id)
         entries = buf.all_entries()
         if not entries:
@@ -172,14 +221,22 @@ class LocalVectorDatabase:
             quantizer_version=self.quantizer_version,
             entries=entries,
         )
+        self.segment_cache.invalidate(_paths.segment_path)
+        self.decoded_segment_cache.invalidate(_paths.segment_path)
         now = datetime.now(timezone.utc)
         segment_manifest.state = SegmentState.ACTIVE
         segment_manifest.sealed_at = segment_manifest.sealed_at or now
         segment_manifest.activated_at = segment_manifest.activated_at or now
         self.segment_manifest_store.save(segment_manifest)
 
-        previous_shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
-        prior_active_segment_ids = previous_shard_manifest.active_segment_ids if previous_shard_manifest is not None else []
+        previous_shard_manifest = self.manifest_store.load(
+            collection_id=self.collection_id, shard_id=shard_id
+        )
+        prior_active_segment_ids = (
+            previous_shard_manifest.active_segment_ids
+            if previous_shard_manifest is not None
+            else []
+        )
         shard_manifest = ShardManifest(
             shard_id=shard_id,
             collection_id=self.collection_id,
@@ -202,14 +259,22 @@ class LocalVectorDatabase:
         return shard_manifest
 
     def load_manifest_set(self, *, shard_id: str = "shard-0") -> tuple[ShardManifest | None, list]:
-        shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
-        segment_manifests = self.segment_manifest_store.list_manifests(collection_id=self.collection_id, shard_id=shard_id)
+        shard_manifest = self.manifest_store.load(
+            collection_id=self.collection_id, shard_id=shard_id
+        )
+        segment_manifests = self.segment_manifest_store.list_manifests(
+            collection_id=self.collection_id, shard_id=shard_id
+        )
         if shard_manifest is not None:
-            issues = validate_manifest_set(shard_manifest=shard_manifest, segment_manifests=segment_manifests)
+            issues = validate_manifest_set(
+                shard_manifest=shard_manifest, segment_manifests=segment_manifests
+            )
             raise_for_manifest_issues(issues)
         return shard_manifest, segment_manifests
 
-    def collect_retired_segments(self, *, shard_id: str = "shard-0") -> SegmentGarbageCollectionExecution:
+    def collect_retired_segments(
+        self, *, shard_id: str = "shard-0"
+    ) -> SegmentGarbageCollectionExecution:
         executor = SegmentGarbageCollectionExecutor(
             segment_manifest_store=self.segment_manifest_store,
             segments_root=self.root_dir / "segments",
@@ -218,14 +283,20 @@ class LocalVectorDatabase:
         return executor.collect_shard(collection_id=self.collection_id, shard_id=shard_id)
 
     def recover(self, *, shard_id: str = "shard-0") -> int:
-        shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
-        replay_from_write_epoch = shard_manifest.replay_from_write_epoch if shard_manifest is not None else 0
+        shard_manifest = self.manifest_store.load(
+            collection_id=self.collection_id, shard_id=shard_id
+        )
+        replay_from_write_epoch = (
+            shard_manifest.replay_from_write_epoch if shard_manifest is not None else 0
+        )
         applied = self.recovery_manager.replay(
             embedding_version=self.embedding_version,
             quantizer_version=self.quantizer_version,
             after_write_epoch=replay_from_write_epoch,
         )
-        self._write_epoch = max(self._write_epoch, self.mutable_buffer.watermark(), replay_from_write_epoch)
+        self._write_epoch = max(
+            self._write_epoch, self.mutable_buffer.watermark(), replay_from_write_epoch
+        )
         return applied
 
     # ------------------------------------------------------------------
@@ -263,7 +334,9 @@ class LocalVectorDatabase:
         total_rows_all = 0
 
         for shard_id in known_shards:
-            shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
+            shard_manifest = self.manifest_store.load(
+                collection_id=self.collection_id, shard_id=shard_id
+            )
             if shard_manifest is None:
                 continue
             active_ids = set(shard_manifest.active_segment_ids)
@@ -297,3 +370,19 @@ class LocalVectorDatabase:
             "mutable_buffer_size": mutable_buffer_size,
             "storage_bytes": storage_bytes,
         }
+
+    def segment_cache_stats(self) -> dict[str, object]:
+        return {
+            "indexed_cache": asdict(self.segment_cache.stats()),
+            "decoded_cache": asdict(self.decoded_segment_cache.stats()),
+            "segment_reads": self.segment_read_stats.snapshot(),
+        }
+
+    def reset_segment_cache_stats(self) -> None:
+        self.segment_cache.reset_stats()
+        self.decoded_segment_cache.reset_stats()
+        self.segment_read_stats.reset()
+
+    def clear_segment_caches(self) -> None:
+        self.segment_cache.clear()
+        self.decoded_segment_cache.clear()

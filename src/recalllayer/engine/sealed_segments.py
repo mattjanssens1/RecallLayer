@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Iterable, Iterator
 
 import numpy as np
@@ -20,6 +21,34 @@ KNOWN_SEGMENT_FORMAT_VERSIONS = {"v1"}
 class LocalSegmentPaths:
     segment_path: Path
     manifest_path: Path
+
+
+@dataclass(slots=True)
+class SegmentReadStats:
+    file_reads: int = 0
+    file_read_bytes: int = 0
+    file_read_latency_ms: float = 0.0
+    decode_loads: int = 0
+    decoded_vector_count: int = 0
+    decode_latency_ms: float = 0.0
+
+    def snapshot(self) -> dict[str, float | int]:
+        return {
+            "file_reads": self.file_reads,
+            "file_read_bytes": self.file_read_bytes,
+            "file_read_latency_ms": self.file_read_latency_ms,
+            "decode_loads": self.decode_loads,
+            "decoded_vector_count": self.decoded_vector_count,
+            "decode_latency_ms": self.decode_latency_ms,
+        }
+
+    def reset(self) -> None:
+        self.file_reads = 0
+        self.file_read_bytes = 0
+        self.file_read_latency_ms = 0.0
+        self.decode_loads = 0
+        self.decoded_vector_count = 0
+        self.decode_latency_ms = 0.0
 
 
 class SegmentBuilder:
@@ -52,7 +81,10 @@ class SegmentBuilder:
 
         with segment_path.open("w", encoding="utf-8") as handle:
             # Write a header row with format version
-            header: dict[str, object] = {"__header__": True, "format_version": SEGMENT_FORMAT_VERSION}
+            header: dict[str, object] = {
+                "__header__": True,
+                "format_version": SEGMENT_FORMAT_VERSION,
+            }
             handle.write(json.dumps(header, separators=(",", ":")))
             handle.write("\n")
             for local_docno, entry in enumerate(entries):
@@ -67,8 +99,12 @@ class SegmentBuilder:
                     }
                     handle.write(json.dumps(payload, separators=(",", ":")))
                     handle.write("\n")
-                    min_write_epoch = epoch if min_write_epoch is None else min(min_write_epoch, epoch)
-                    max_write_epoch = epoch if max_write_epoch is None else max(max_write_epoch, epoch)
+                    min_write_epoch = (
+                        epoch if min_write_epoch is None else min(min_write_epoch, epoch)
+                    )
+                    max_write_epoch = (
+                        epoch if max_write_epoch is None else max(max_write_epoch, epoch)
+                    )
                     continue
                 if entry.embedding is None:
                     continue
@@ -108,9 +144,12 @@ class SegmentBuilder:
 class SegmentReader:
     """Reads local JSONL-backed sealed segments."""
 
-    def __init__(self, segment_path: str | Path, *, cache=None) -> None:
+    def __init__(
+        self, segment_path: str | Path, *, cache=None, read_stats: SegmentReadStats | None = None
+    ) -> None:
         self.segment_path = Path(segment_path)
         self._cache = cache  # optional SegmentReadCache instance
+        self._read_stats = read_stats
 
     def read_format_version(self) -> str | None:
         """Return the format_version from the segment header, or None if absent."""
@@ -135,32 +174,47 @@ class SegmentReader:
         yield from vectors
 
     def _read_indexed_vectors(self) -> Iterator[IndexedVector]:
+        read_start = perf_counter()
         with self.segment_path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                payload = json.loads(line)
-                # First line may be a header; validate version and skip it.
-                if payload.get("__header__"):
-                    version = payload.get("format_version")
-                    if version not in KNOWN_SEGMENT_FORMAT_VERSIONS:
-                        raise ValueError(
-                            f"Unknown segment format version {version!r} in {self.segment_path}. "
-                            f"Known versions: {sorted(KNOWN_SEGMENT_FORMAT_VERSIONS)}"
-                        )
-                    continue
-                # Skip tombstone rows
-                if payload.get("is_deleted"):
-                    continue
-                yield IndexedVector(
-                    vector_id=payload["vector_id"],
-                    encoded=EncodedVector(
-                        codes=np.asarray(payload["codes"], dtype=np.int8),
-                        scale=float(payload["scale"]),
-                    ),
-                    metadata=payload.get("metadata", {}),
-                )
+            lines = handle.readlines()
+        read_latency_ms = (perf_counter() - read_start) * 1000.0
+        if self._read_stats is not None:
+            self._read_stats.file_reads += 1
+            self._read_stats.file_read_bytes += self.segment_path.stat().st_size
+            self._read_stats.file_read_latency_ms += read_latency_ms
+
+        decode_start = perf_counter()
+        decoded_count = 0
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            payload = json.loads(line)
+            # First line may be a header; validate version and skip it.
+            if payload.get("__header__"):
+                version = payload.get("format_version")
+                if version not in KNOWN_SEGMENT_FORMAT_VERSIONS:
+                    raise ValueError(
+                        f"Unknown segment format version {version!r} in {self.segment_path}. "
+                        f"Known versions: {sorted(KNOWN_SEGMENT_FORMAT_VERSIONS)}"
+                    )
+                continue
+            # Skip tombstone rows
+            if payload.get("is_deleted"):
+                continue
+            decoded_count += 1
+            yield IndexedVector(
+                vector_id=payload["vector_id"],
+                encoded=EncodedVector(
+                    codes=np.asarray(payload["codes"], dtype=np.int8),
+                    scale=float(payload["scale"]),
+                ),
+                metadata=payload.get("metadata", {}),
+            )
+        if self._read_stats is not None:
+            self._read_stats.decode_loads += 1
+            self._read_stats.decoded_vector_count += decoded_count
+            self._read_stats.decode_latency_ms += (perf_counter() - decode_start) * 1000.0
 
 
 class LocalSegmentStore:
