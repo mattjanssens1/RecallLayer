@@ -49,7 +49,21 @@ class SegmentBuilder:
 
         with segment_path.open("w", encoding="utf-8") as handle:
             for local_docno, entry in enumerate(entries):
-                if entry.record.is_deleted or entry.embedding is None:
+                epoch = entry.record.latest_write_epoch
+                if entry.record.is_deleted:
+                    # Write a tombstone marker so compactors can physically delete rows.
+                    payload: dict[str, object] = {
+                        "local_docno": local_docno,
+                        "vector_id": entry.record.vector_id,
+                        "is_deleted": True,
+                        "write_epoch": epoch,
+                    }
+                    handle.write(json.dumps(payload, separators=(",", ":")))
+                    handle.write("\n")
+                    min_write_epoch = epoch if min_write_epoch is None else min(min_write_epoch, epoch)
+                    max_write_epoch = epoch if max_write_epoch is None else max(max_write_epoch, epoch)
+                    continue
+                if entry.embedding is None:
                     continue
                 encoded = self.quantizer.encode(entry.embedding)
                 payload = {
@@ -58,12 +72,11 @@ class SegmentBuilder:
                     "codes": encoded.codes.tolist(),
                     "scale": encoded.scale,
                     "metadata": entry.metadata,
-                    "write_epoch": entry.record.latest_write_epoch,
+                    "write_epoch": epoch,
                 }
                 handle.write(json.dumps(payload, separators=(",", ":")))
                 handle.write("\n")
                 row_count += 1
-                epoch = entry.record.latest_write_epoch
                 min_write_epoch = epoch if min_write_epoch is None else min(min_write_epoch, epoch)
                 max_write_epoch = epoch if max_write_epoch is None else max(max_write_epoch, epoch)
 

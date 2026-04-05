@@ -28,6 +28,7 @@ class LocalVectorDatabase:
         embedding_version: str = "embed-v1",
         quantizer_version: str = "tq-v0",
         quantizer: Quantizer | None = None,
+        flush_threshold: int | None = None,
     ) -> None:
         self.collection_id = collection_id
         self.root_dir = Path(root_dir)
@@ -44,8 +45,10 @@ class LocalVectorDatabase:
         self.segment_builder = SegmentBuilder(self.root_dir / "segments", quantizer=self.quantizer)
         self.recovery_manager = RecoveryManager(write_log=self.write_log, mutable_buffer=self.mutable_buffer)
         self.query_executor = QueryExecutor(mutable_buffer=self.mutable_buffer, quantizer=self.quantizer)
+        self.flush_threshold = flush_threshold
 
         self._write_epoch = self.mutable_buffer.watermark()
+        self._auto_flush_segment_counter = 0
 
     def upsert(self, *, vector_id: str, embedding: list[float], metadata: dict[str, object] | None = None) -> int:
         self._write_epoch += 1
@@ -64,6 +67,7 @@ class LocalVectorDatabase:
             quantizer_version=self.quantizer_version,
             write_epoch=self._write_epoch,
         )
+        self._maybe_auto_flush()
         return self._write_epoch
 
     def delete(self, *, vector_id: str) -> int:
@@ -81,6 +85,48 @@ class LocalVectorDatabase:
         )
         return self._write_epoch
 
+    def _maybe_auto_flush(self) -> None:
+        if self.flush_threshold is None:
+            return
+        mutable_count = len(self.mutable_buffer.all_entries())
+        if mutable_count >= self.flush_threshold:
+            self._auto_flush_segment_counter += 1
+            self.flush_mutable(
+                segment_id=f"seg-auto-{self._auto_flush_segment_counter}",
+                generation=self._auto_flush_segment_counter,
+            )
+
+    def shard_live_row_fraction(self, *, shard_id: str = "shard-0") -> float | None:
+        """Return live / total rows across sealed segments for this shard.
+
+        Returns None when there are no sealed segments.
+        """
+        segment_manifests = self.segment_manifest_store.list_manifests(
+            collection_id=self.collection_id, shard_id=shard_id
+        )
+        shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
+        if shard_manifest is None:
+            return None
+        active_ids = set(shard_manifest.active_segment_ids)
+        active_manifests = [m for m in segment_manifests if m.segment_id in active_ids]
+        if not active_manifests:
+            return None
+        total_rows = sum(m.row_count for m in active_manifests)
+        live_rows = sum(m.live_row_count for m in active_manifests)
+        if total_rows == 0:
+            return 1.0
+        return live_rows / total_rows
+
+    def shard_delete_ratio(self, *, shard_id: str = "shard-0") -> float | None:
+        """Return fraction of rows that are deleted (1 - live_row_fraction).
+
+        Returns None when there are no sealed segments.
+        """
+        fraction = self.shard_live_row_fraction(shard_id=shard_id)
+        if fraction is None:
+            return None
+        return 1.0 - fraction
+
     def query_exact(self, query_vector: list[float], *, top_k: int) -> list[str]:
         return [item.vector_id for item in self.query_executor.search_exact(query_vector, top_k=top_k)]
 
@@ -88,7 +134,7 @@ class LocalVectorDatabase:
         return [item.vector_id for item in self.query_executor.search_compressed(query_vector, top_k=top_k)]
 
     def flush_mutable(self, *, shard_id: str = "shard-0", segment_id: str = "seg-0", generation: int = 1) -> ShardManifest | None:
-        entries = self.mutable_buffer.live_entries()
+        entries = self.mutable_buffer.all_entries()
         if not entries:
             return None
 
