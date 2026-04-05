@@ -12,6 +12,9 @@ from recalllayer.model.manifest import SegmentManifest, SegmentState
 from recalllayer.quantization.base import EncodedVector, Quantizer
 from recalllayer.retrieval.base import IndexedVector
 
+SEGMENT_FORMAT_VERSION = "v1"
+KNOWN_SEGMENT_FORMAT_VERSIONS = {"v1"}
+
 
 @dataclass(slots=True)
 class LocalSegmentPaths:
@@ -48,6 +51,10 @@ class SegmentBuilder:
         max_write_epoch: int | None = None
 
         with segment_path.open("w", encoding="utf-8") as handle:
+            # Write a header row with format version
+            header: dict[str, object] = {"__header__": True, "format_version": SEGMENT_FORMAT_VERSION}
+            handle.write(json.dumps(header, separators=(",", ":")))
+            handle.write("\n")
             for local_docno, entry in enumerate(entries):
                 epoch = entry.record.latest_write_epoch
                 if entry.record.is_deleted:
@@ -104,10 +111,36 @@ class SegmentReader:
     def __init__(self, segment_path: str | Path) -> None:
         self.segment_path = Path(segment_path)
 
+    def read_format_version(self) -> str | None:
+        """Return the format_version from the segment header, or None if absent."""
+        with self.segment_path.open("r", encoding="utf-8") as handle:
+            first_line = handle.readline().strip()
+            if not first_line:
+                return None
+            payload = json.loads(first_line)
+            if payload.get("__header__"):
+                return payload.get("format_version")
+        return None
+
     def iter_indexed_vectors(self) -> Iterator[IndexedVector]:
         with self.segment_path.open("r", encoding="utf-8") as handle:
             for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
                 payload = json.loads(line)
+                # First line may be a header; validate version and skip it.
+                if payload.get("__header__"):
+                    version = payload.get("format_version")
+                    if version not in KNOWN_SEGMENT_FORMAT_VERSIONS:
+                        raise ValueError(
+                            f"Unknown segment format version {version!r} in {self.segment_path}. "
+                            f"Known versions: {sorted(KNOWN_SEGMENT_FORMAT_VERSIONS)}"
+                        )
+                    continue
+                # Skip tombstone rows
+                if payload.get("is_deleted"):
+                    continue
                 yield IndexedVector(
                     vector_id=payload["vector_id"],
                     encoded=EncodedVector(

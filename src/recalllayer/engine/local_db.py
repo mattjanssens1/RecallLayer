@@ -47,10 +47,16 @@ class LocalVectorDatabase:
         self.query_executor = QueryExecutor(mutable_buffer=self.mutable_buffer, quantizer=self.quantizer)
         self.flush_threshold = flush_threshold
 
+        # Multi-shard support: per-shard mutable buffers and query executors.
+        # shard-0 uses the default mutable_buffer / query_executor for backward compat.
+        self._shard_buffers: dict[str, MutableBuffer] = {"shard-0": self.mutable_buffer}
+        self._shard_query_executors: dict[str, QueryExecutor] = {"shard-0": self.query_executor}
+        self._shard_auto_flush_counters: dict[str, int] = {"shard-0": 0}
+
         self._write_epoch = self.mutable_buffer.watermark()
         self._auto_flush_segment_counter = 0
 
-    def upsert(self, *, vector_id: str, embedding: list[float], metadata: dict[str, object] | None = None) -> int:
+    def upsert(self, *, vector_id: str, embedding: list[float], metadata: dict[str, object] | None = None, shard_id: str = "shard-0") -> int:  # noqa: E501
         self._write_epoch += 1
         self.write_log.append_upsert(
             collection_id=self.collection_id,
@@ -59,7 +65,7 @@ class LocalVectorDatabase:
             embedding=embedding,
             metadata=metadata or {},
         )
-        self.mutable_buffer.upsert(
+        self._get_mutable_buffer(shard_id).upsert(
             vector_id=vector_id,
             embedding=embedding,
             metadata=metadata or {},
@@ -67,17 +73,17 @@ class LocalVectorDatabase:
             quantizer_version=self.quantizer_version,
             write_epoch=self._write_epoch,
         )
-        self._maybe_auto_flush()
+        self._maybe_auto_flush(shard_id=shard_id)
         return self._write_epoch
 
-    def delete(self, *, vector_id: str) -> int:
+    def delete(self, *, vector_id: str, shard_id: str = "shard-0") -> int:
         self._write_epoch += 1
         self.write_log.append_delete(
             collection_id=self.collection_id,
             vector_id=vector_id,
             write_epoch=self._write_epoch,
         )
-        self.mutable_buffer.delete(
+        self._get_mutable_buffer(shard_id).delete(
             vector_id=vector_id,
             embedding_version=self.embedding_version,
             quantizer_version=self.quantizer_version,
@@ -85,15 +91,31 @@ class LocalVectorDatabase:
         )
         return self._write_epoch
 
-    def _maybe_auto_flush(self) -> None:
+    def _get_mutable_buffer(self, shard_id: str) -> MutableBuffer:
+        if shard_id not in self._shard_buffers:
+            buf = MutableBuffer(collection_id=self.collection_id)
+            self._shard_buffers[shard_id] = buf
+            self._shard_query_executors[shard_id] = QueryExecutor(mutable_buffer=buf, quantizer=self.quantizer)
+            self._shard_auto_flush_counters[shard_id] = 0
+        return self._shard_buffers[shard_id]
+
+    def _get_query_executor(self, shard_id: str) -> QueryExecutor:
+        self._get_mutable_buffer(shard_id)  # ensure initialized
+        return self._shard_query_executors[shard_id]
+
+    def _maybe_auto_flush(self, shard_id: str = "shard-0") -> None:
         if self.flush_threshold is None:
             return
-        mutable_count = len(self.mutable_buffer.all_entries())
+        buf = self._get_mutable_buffer(shard_id)
+        mutable_count = len(buf.all_entries())
         if mutable_count >= self.flush_threshold:
-            self._auto_flush_segment_counter += 1
+            self._shard_auto_flush_counters[shard_id] = self._shard_auto_flush_counters.get(shard_id, 0) + 1
+            counter = self._shard_auto_flush_counters[shard_id]
+            self._auto_flush_segment_counter = counter  # keep compat attr in sync for shard-0
             self.flush_mutable(
-                segment_id=f"seg-auto-{self._auto_flush_segment_counter}",
-                generation=self._auto_flush_segment_counter,
+                shard_id=shard_id,
+                segment_id=f"seg-auto-{counter}",
+                generation=counter,
             )
 
     def shard_live_row_fraction(self, *, shard_id: str = "shard-0") -> float | None:
@@ -127,14 +149,15 @@ class LocalVectorDatabase:
             return None
         return 1.0 - fraction
 
-    def query_exact(self, query_vector: list[float], *, top_k: int) -> list[str]:
-        return [item.vector_id for item in self.query_executor.search_exact(query_vector, top_k=top_k)]
+    def query_exact(self, query_vector: list[float], *, top_k: int, shard_id: str = "shard-0") -> list[str]:
+        return [item.vector_id for item in self._get_query_executor(shard_id).search_exact(query_vector, top_k=top_k)]
 
-    def query_compressed(self, query_vector: list[float], *, top_k: int) -> list[str]:
-        return [item.vector_id for item in self.query_executor.search_compressed(query_vector, top_k=top_k)]
+    def query_compressed(self, query_vector: list[float], *, top_k: int, shard_id: str = "shard-0") -> list[str]:
+        return [item.vector_id for item in self._get_query_executor(shard_id).search_compressed(query_vector, top_k=top_k)]
 
-    def flush_mutable(self, *, shard_id: str = "shard-0", segment_id: str = "seg-0", generation: int = 1) -> ShardManifest | None:
-        entries = self.mutable_buffer.all_entries()
+    def flush_mutable(self, *, shard_id: str = "shard-0", segment_id: str = "seg-0", generation: int = 1, truncate_write_log: bool = False) -> ShardManifest | None:  # noqa: E501
+        buf = self._get_mutable_buffer(shard_id)
+        entries = buf.all_entries()
         if not entries:
             return None
 
@@ -171,7 +194,9 @@ class LocalVectorDatabase:
         )
         raise_for_manifest_issues(issues)
         self.manifest_store.save(shard_manifest)
-        self.mutable_buffer.remove_many(entry.record.vector_id for entry in entries)
+        buf.remove_many(entry.record.vector_id for entry in entries)
+        if truncate_write_log:
+            self.truncate_write_log_before(shard_manifest.replay_from_write_epoch)
         return shard_manifest
 
     def load_manifest_set(self, *, shard_id: str = "shard-0") -> tuple[ShardManifest | None, list]:
@@ -200,3 +225,73 @@ class LocalVectorDatabase:
         )
         self._write_epoch = max(self._write_epoch, self.mutable_buffer.watermark(), replay_from_write_epoch)
         return applied
+
+    # ------------------------------------------------------------------
+    # Write-log truncation
+    # ------------------------------------------------------------------
+
+    def truncate_write_log_before(self, write_epoch: int) -> int:
+        """Remove write-log entries with write_epoch <= *write_epoch*.
+
+        Returns the number of entries removed.  The log file is rewritten
+        atomically (write to tmp, rename).
+        """
+        return self.write_log.truncate_before(write_epoch)
+
+    # ------------------------------------------------------------------
+    # Collection-level stats
+    # ------------------------------------------------------------------
+
+    def collection_stats(self) -> dict[str, object]:
+        """Return a summary of the collection across all shards."""
+        import os
+
+        # Gather all shard IDs known via manifests
+        known_shards: set[str] = set()
+        manifests_dir = self.root_dir / "manifests" / self.collection_id
+        if manifests_dir.exists():
+            for p in manifests_dir.iterdir():
+                if p.name.endswith(".manifest.json"):
+                    known_shards.add(p.name.replace(".manifest.json", ""))
+        # Also include shards with live buffer data
+        known_shards.update(self._shard_buffers.keys())
+
+        total_segment_count = 0
+        total_live_rows = 0
+        total_rows_all = 0
+
+        for shard_id in known_shards:
+            shard_manifest = self.manifest_store.load(collection_id=self.collection_id, shard_id=shard_id)
+            if shard_manifest is None:
+                continue
+            active_ids = set(shard_manifest.active_segment_ids)
+            segment_manifests = self.segment_manifest_store.list_manifests(
+                collection_id=self.collection_id, shard_id=shard_id
+            )
+            active = [m for m in segment_manifests if m.segment_id in active_ids]
+            total_segment_count += len(active)
+            total_live_rows += sum(m.live_row_count for m in active)
+            total_rows_all += sum(m.row_count for m in active)
+
+        delete_ratio = (1.0 - total_live_rows / total_rows_all) if total_rows_all > 0 else 0.0
+
+        # Mutable buffer size = total entries across all shard buffers
+        mutable_buffer_size = sum(len(buf.all_entries()) for buf in self._shard_buffers.values())
+
+        # Storage size: sum of all files under collection segments dir
+        segments_dir = self.root_dir / "segments" / self.collection_id
+        storage_bytes = 0
+        if segments_dir.exists():
+            for p in segments_dir.rglob("*"):
+                if p.is_file():
+                    storage_bytes += os.path.getsize(p)
+
+        return {
+            "collection_id": self.collection_id,
+            "shard_count": len(known_shards),
+            "total_segment_count": total_segment_count,
+            "total_live_rows": total_live_rows,
+            "total_delete_ratio": delete_ratio,
+            "mutable_buffer_size": mutable_buffer_size,
+            "storage_bytes": storage_bytes,
+        }
