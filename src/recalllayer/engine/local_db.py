@@ -11,7 +11,7 @@ from recalllayer.engine.recovery_manager import RecoveryManager
 from recalllayer.engine.sealed_segments import LocalSegmentStore, SegmentBuilder
 from recalllayer.engine.segment_gc_executor import SegmentGarbageCollectionExecution, SegmentGarbageCollectionExecutor
 from recalllayer.engine.segment_manifest_store import SegmentManifestStore
-from recalllayer.engine.write_log import WriteLog
+from recalllayer.engine.write_log import DurabilityMode, WriteLog
 from recalllayer.model.manifest import SegmentState, ShardManifest
 from recalllayer.quantization.base import Quantizer
 from recalllayer.quantization.scalar import ScalarQuantizer
@@ -29,6 +29,7 @@ class LocalVectorDatabase:
         quantizer_version: str = "tq-v0",
         quantizer: Quantizer | None = None,
         flush_threshold: int | None = None,
+        durability_mode: DurabilityMode = DurabilityMode.MEMORY,
     ) -> None:
         self.collection_id = collection_id
         self.root_dir = Path(root_dir)
@@ -38,7 +39,8 @@ class LocalVectorDatabase:
         self.quantizer = quantizer or ScalarQuantizer()
 
         self.mutable_buffer = MutableBuffer(collection_id=collection_id)
-        self.write_log = WriteLog(self.root_dir / collection_id / "write_log.jsonl")
+        self.write_log = WriteLog(self.root_dir / collection_id / "write_log.jsonl", durability_mode=durability_mode)
+        self.durability_mode = durability_mode
         self.manifest_store = ManifestStore(self.root_dir / "manifests")
         self.segment_manifest_store = SegmentManifestStore(self.root_dir / "segment-manifests")
         self.segment_store = LocalSegmentStore(self.root_dir / "segments")

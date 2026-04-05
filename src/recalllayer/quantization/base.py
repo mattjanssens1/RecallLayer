@@ -29,6 +29,10 @@ class Quantizer(ABC):
     def batch_encode(self, vectors: Sequence[Sequence[float]]) -> list[EncodedVector]:
         return [self.encode(vector) for vector in vectors]
 
+    def decode(self, encoded: EncodedVector) -> np.ndarray:
+        """Reconstruct an approximate float vector from an encoded vector."""
+        return encoded.codes.astype(np.float32) * np.float32(encoded.scale)
+
     @abstractmethod
     def approx_score(self, query_vector: Sequence[float], encoded: EncodedVector) -> float:
         raise NotImplementedError
