@@ -1,5 +1,5 @@
-from turboquant_db.engine.manifest_validation import raise_for_manifest_issues, validate_manifest_set
-from turboquant_db.model.manifest import SegmentManifest, SegmentState, ShardManifest
+from recalllayer.engine.manifest_validation import raise_for_manifest_issues, validate_manifest_set
+from recalllayer.model.manifest import SegmentManifest, SegmentState, ShardManifest
 
 
 def test_validate_manifest_set_flags_missing_and_retired_active_segments() -> None:

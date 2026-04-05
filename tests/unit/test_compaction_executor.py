@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from turboquant_db.engine.compaction_executor import CompactionExecutor
-from turboquant_db.engine.compaction_planner import CompactionPlanner
-from turboquant_db.engine.compactor import LocalSegmentCompactor
-from turboquant_db.engine.local_db import LocalVectorDatabase
-from turboquant_db.engine.manifest_store import ManifestStore
-from turboquant_db.engine.segment_manifest_store import SegmentManifestStore
-from turboquant_db.engine.showcase_db import ShowcaseLocalDatabase
-from turboquant_db.model.manifest import SegmentState, ShardManifest
+from recalllayer.engine.compaction_executor import CompactionExecutor
+from recalllayer.engine.compaction_planner import CompactionPlanner
+from recalllayer.engine.compactor import LocalSegmentCompactor
+from recalllayer.engine.local_db import LocalVectorDatabase
+from recalllayer.engine.manifest_store import ManifestStore
+from recalllayer.engine.segment_manifest_store import SegmentManifestStore
+from recalllayer.engine.showcase_db import ShowcaseLocalDatabase
+from recalllayer.model.manifest import SegmentState, ShardManifest
 
 
 def test_compaction_executor_retires_sources_and_updates_active_segments(tmp_path: Path) -> None:

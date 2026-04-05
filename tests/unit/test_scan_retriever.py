@@ -1,6 +1,6 @@
-from turboquant_db.quantization.scalar import ScalarQuantizer
-from turboquant_db.retrieval.base import IndexedVector
-from turboquant_db.retrieval.scan import CompressedScanRetriever
+from recalllayer.quantization.scalar import ScalarQuantizer
+from recalllayer.retrieval.base import IndexedVector
+from recalllayer.retrieval.scan import CompressedScanRetriever
 
 
 def test_scan_retriever_returns_best_match_first() -> None:

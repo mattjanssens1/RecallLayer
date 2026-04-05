@@ -1,6 +1,6 @@
 import warnings
 
-from turboquant_db.api.app_shared import build_alias_warning, emit_alias_warning
+from recalllayer.api.app_shared import build_alias_warning, emit_alias_warning
 
 
 def test_build_alias_warning_formats_message() -> None:

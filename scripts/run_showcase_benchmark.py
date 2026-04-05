@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from turboquant_db.benchmark.comparison import render_markdown_table
-from turboquant_db.benchmark.showcase_runner import run_showcase_benchmark
+from recalllayer.benchmark.comparison import render_markdown_table
+from recalllayer.benchmark.showcase_runner import run_showcase_benchmark
 
 
 def main() -> None:

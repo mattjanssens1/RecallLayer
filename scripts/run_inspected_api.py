@@ -1,4 +1,4 @@
-from turboquant_db.api.app_inspected import app
+from recalllayer.api.app_inspected import app
 
 
 if __name__ == "__main__":

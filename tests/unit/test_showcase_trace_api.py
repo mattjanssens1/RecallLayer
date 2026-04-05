@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 
-from turboquant_db.api.schemas import QueryRequest
-from turboquant_db.api.showcase_notes import build_collection_notes
-from turboquant_db.api.showcase_trace_api import InspectedSurfaceRunner, build_inspected_trace_payload, build_traced_trace_payload
+from recalllayer.api.schemas import QueryRequest
+from recalllayer.api.showcase_notes import build_collection_notes
+from recalllayer.api.showcase_trace_api import InspectedSurfaceRunner, build_inspected_trace_payload, build_traced_trace_payload
 
 
 class _FakeInspectedDb:

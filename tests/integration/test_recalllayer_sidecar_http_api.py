@@ -2,8 +2,8 @@ from pathlib import Path
 
 from fastapi.routing import APIRoute
 
-from turboquant_db.api.recalllayer_sidecar_app import create_recalllayer_sidecar_app
-from turboquant_db.api.recalllayer_sidecar_schemas import (
+from recalllayer.api.recalllayer_sidecar_app import create_recalllayer_sidecar_app
+from recalllayer.api.recalllayer_sidecar_schemas import (
     SidecarCompactionRequest,
     SidecarDocumentUpsertRequest,
     SidecarFlushRequest,

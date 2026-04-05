@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
-from turboquant_db.api.showcase_server_observed import create_observed_showcase_app
-from turboquant_db.api.showcase_server_observed_plus import create_observed_plus_showcase_app
+from recalllayer.api.showcase_server_observed import create_observed_showcase_app
+from recalllayer.api.showcase_server_observed_plus import create_observed_plus_showcase_app
 
 
 def test_observed_api_exposes_candidate_estimate_aliases() -> None:

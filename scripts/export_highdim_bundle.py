@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from turboquant_db.benchmark.comparison import render_markdown_table
-from turboquant_db.benchmark.diagnostics import BenchmarkDiagnostics, write_diagnostics
-from turboquant_db.benchmark.highdim_runner import run_highdim_benchmark
+from recalllayer.benchmark.comparison import render_markdown_table
+from recalllayer.benchmark.diagnostics import BenchmarkDiagnostics, write_diagnostics
+from recalllayer.benchmark.highdim_runner import run_highdim_benchmark
 
 
 def main() -> None:

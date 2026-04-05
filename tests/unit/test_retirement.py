@@ -1,5 +1,5 @@
-from turboquant_db.engine.retirement import apply_retirement, build_retirement_decision
-from turboquant_db.model.manifest import SegmentManifest, SegmentState
+from recalllayer.engine.retirement import apply_retirement, build_retirement_decision
+from recalllayer.model.manifest import SegmentManifest, SegmentState
 
 
 def _manifest(segment_id: str) -> SegmentManifest:

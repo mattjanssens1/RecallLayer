@@ -1,4 +1,4 @@
-from turboquant_db.sidecar import InMemoryPostgres, InMemoryPostgresRepository
+from recalllayer.sidecar import InMemoryPostgres, InMemoryPostgresRepository
 
 
 def test_in_memory_postgres_repository_lists_and_hydrates_published_rows() -> None:

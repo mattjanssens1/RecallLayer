@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from turboquant_db.engine.wal_snapshot import build_write_log_snapshot
-from turboquant_db.engine.write_log import WriteLog
+from recalllayer.engine.wal_snapshot import build_write_log_snapshot
+from recalllayer.engine.write_log import WriteLog
 
 
 def test_build_write_log_snapshot_tracks_live_and_deleted_vectors(tmp_path: Path) -> None:

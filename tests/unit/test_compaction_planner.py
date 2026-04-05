@@ -1,5 +1,5 @@
-from turboquant_db.engine.compaction_planner import CompactionPlanner
-from turboquant_db.model.manifest import SegmentManifest, SegmentState
+from recalllayer.engine.compaction_planner import CompactionPlanner
+from recalllayer.model.manifest import SegmentManifest, SegmentState
 
 
 def _manifest(segment_id: str, generation: int, row_count: int, state: SegmentState = SegmentState.SEALED) -> SegmentManifest:

@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from turboquant_db.api.app_measured import create_app
+from recalllayer.api.app_measured import create_app
 
 
 def test_measured_api_reports_real_candidate_counts() -> None:

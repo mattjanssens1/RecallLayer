@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from turboquant_db.benchmark.mini_harness import run_mini_harness
-from turboquant_db.engine.showcase_db import ShowcaseLocalDatabase
+from recalllayer.benchmark.mini_harness import run_mini_harness
+from recalllayer.engine.showcase_db import ShowcaseLocalDatabase
 
 
 def main() -> None:

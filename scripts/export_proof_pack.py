@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from turboquant_db.benchmark.proof_pack import build_proof_rows, render_proof_markdown
+from recalllayer.benchmark.proof_pack import build_proof_rows, render_proof_markdown
 
 
 def main() -> None:

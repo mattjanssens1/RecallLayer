@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from turboquant_db.api.showcase_server_traced import create_traced_showcase_app
+from recalllayer.api.showcase_server_traced import create_traced_showcase_app
 
 
 def test_traced_showcase_api_empty_query_and_bad_payload(tmp_path) -> None:

@@ -1,9 +1,9 @@
 import json
 from pathlib import Path
 
-from turboquant_db.engine.compactor import LocalSegmentCompactor
-from turboquant_db.engine.manifest_store import ManifestStore
-from turboquant_db.engine.sealed_segments import SegmentReader
+from recalllayer.engine.compactor import LocalSegmentCompactor
+from recalllayer.engine.manifest_store import ManifestStore
+from recalllayer.engine.sealed_segments import SegmentReader
 
 
 def _write_segment(path: Path, rows: list[dict[str, object]]) -> None:

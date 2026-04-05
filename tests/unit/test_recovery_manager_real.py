@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from turboquant_db.engine.mutable_buffer import MutableBuffer
-from turboquant_db.engine.recovery_manager import RecoveryManager
-from turboquant_db.engine.write_log import WriteLog
+from recalllayer.engine.mutable_buffer import MutableBuffer
+from recalllayer.engine.recovery_manager import RecoveryManager
+from recalllayer.engine.write_log import WriteLog
 
 
 def test_recovery_manager_replays_latest_state(tmp_path: Path) -> None:

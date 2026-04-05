@@ -1,4 +1,4 @@
-from turboquant_db.engine.query_stats import build_query_stats
+from recalllayer.engine.query_stats import build_query_stats
 
 
 def test_build_query_stats_counts_mutable_and_sealed_hits() -> None:

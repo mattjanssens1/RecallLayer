@@ -1,5 +1,5 @@
-from turboquant_db.engine.debug_surfaces import DebugEngineSurface
-from turboquant_db.engine.local_db import LocalVectorDatabase
+from recalllayer.engine.debug_surfaces import DebugEngineSurface
+from recalllayer.engine.local_db import LocalVectorDatabase
 
 
 def test_debug_engine_surface_exposes_recovery_audit_and_wal_snapshot(tmp_path) -> None:

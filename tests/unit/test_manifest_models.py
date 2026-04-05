@@ -1,4 +1,4 @@
-from turboquant_db.model.manifest import SegmentManifest, SegmentState, ShardManifest, ShardState
+from recalllayer.model.manifest import SegmentManifest, SegmentState, ShardManifest, ShardState
 
 
 def test_segment_manifest_defaults() -> None:

@@ -1,4 +1,4 @@
-from turboquant_db.engine.query_plan import build_query_plan
+from recalllayer.engine.query_plan import build_query_plan
 
 
 def test_build_query_plan_normalizes_rerank_candidate_k() -> None:

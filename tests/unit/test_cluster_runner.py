@@ -1,4 +1,4 @@
-from turboquant_db.benchmark.cluster_runner import run_cluster_benchmark
+from recalllayer.benchmark.cluster_runner import run_cluster_benchmark
 
 
 def test_cluster_benchmark_runner_returns_rows() -> None:

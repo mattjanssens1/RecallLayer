@@ -1,4 +1,4 @@
-from turboquant_db.engine.showcase_db import ShowcaseLocalDatabase
+from recalllayer.engine.showcase_db import ShowcaseLocalDatabase
 
 
 def main() -> None:

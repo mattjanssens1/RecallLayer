@@ -1,4 +1,4 @@
-from turboquant_db.benchmark.metrics import average_latency_ms, recall_at_k, top_k_overlap
+from recalllayer.benchmark.metrics import average_latency_ms, recall_at_k, top_k_overlap
 
 
 def test_recall_at_k() -> None:

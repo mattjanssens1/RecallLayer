@@ -1,4 +1,4 @@
-from turboquant_db.api.showcase_notes import build_collection_notes
+from recalllayer.api.showcase_notes import build_collection_notes
 
 
 def test_build_collection_notes_includes_collection_id_and_extra_fields() -> None:

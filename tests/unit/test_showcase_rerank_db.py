@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from turboquant_db.engine.showcase_rerank_db import ShowcaseRerankDatabase
+from recalllayer.engine.showcase_rerank_db import ShowcaseRerankDatabase
 
 
 def test_showcase_rerank_hybrid_returns_ranked_ids(tmp_path: Path) -> None:
