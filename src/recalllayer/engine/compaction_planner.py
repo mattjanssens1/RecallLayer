@@ -62,9 +62,25 @@ class CompactionPlanner:
         self.min_delete_ratio = min_delete_ratio
         self.delete_ratio_weight = delete_ratio_weight
 
+    def _priority_score(self, manifest: SegmentManifest) -> float:
+        """Higher score = higher merge priority.
+
+        Components:
+        - delete_ratio: fraction of rows deleted (0.0–1.0)
+        - age: prefer older generations (lower generation = older)
+        - row_count: prefer segments with more rows (more benefit to compact)
+        """
+        total = manifest.row_count
+        live = manifest.live_row_count
+        delete_ratio = (1.0 - live / total) if total > 0 else 0.0
+        age_score = 1.0 / (manifest.generation + 1)  # older (lower gen) => higher
+        row_score = min(total / max(self.max_total_rows, 1), 1.0)
+        return 2.0 * delete_ratio + age_score + 0.5 * row_score
+
     def plan(self, manifests: list[SegmentManifest]) -> CompactionPlan | None:
         candidates = [manifest for manifest in manifests if manifest.state in {SegmentState.SEALED, SegmentState.ACTIVE}]
-        candidates.sort(key=lambda item: (item.generation, item.segment_id))
+        # Sort by descending priority score (highest priority first)
+        candidates.sort(key=lambda item: self._priority_score(item), reverse=True)
         if len(candidates) < self.min_segment_count:
             return None
 

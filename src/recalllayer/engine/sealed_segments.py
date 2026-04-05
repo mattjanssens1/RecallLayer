@@ -108,8 +108,9 @@ class SegmentBuilder:
 class SegmentReader:
     """Reads local JSONL-backed sealed segments."""
 
-    def __init__(self, segment_path: str | Path) -> None:
+    def __init__(self, segment_path: str | Path, *, cache=None) -> None:
         self.segment_path = Path(segment_path)
+        self._cache = cache  # optional SegmentReadCache instance
 
     def read_format_version(self) -> str | None:
         """Return the format_version from the segment header, or None if absent."""
@@ -123,6 +124,17 @@ class SegmentReader:
         return None
 
     def iter_indexed_vectors(self) -> Iterator[IndexedVector]:
+        if self._cache is not None:
+            cached = self._cache.get(self.segment_path)
+            if cached is not None:
+                yield from cached
+                return
+        vectors = list(self._read_indexed_vectors())
+        if self._cache is not None:
+            self._cache.put(self.segment_path, vectors)
+        yield from vectors
+
+    def _read_indexed_vectors(self) -> Iterator[IndexedVector]:
         with self.segment_path.open("r", encoding="utf-8") as handle:
             for line in handle:
                 line = line.strip()

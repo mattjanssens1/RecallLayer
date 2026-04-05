@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
@@ -8,6 +9,15 @@ from threading import Lock
 from typing import Any, Iterable
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class DurabilityMode(StrEnum):
+    """Write-ahead durability mode."""
+
+    MEMORY = "memory"
+    """Default: writes are buffered by the OS (no explicit fsync)."""
+    LOG_SYNC = "log_sync"
+    """After each append, fsync the write log file."""
 
 
 class WriteOperation(StrEnum):
@@ -32,10 +42,11 @@ class WriteLogEntry(BaseModel):
 class WriteLog:
     """Very small JSONL write log for prototype durability and replay."""
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, *, durability_mode: DurabilityMode = DurabilityMode.MEMORY) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = Lock()
+        self.durability_mode = durability_mode
 
     def append(self, entry: WriteLogEntry) -> None:
         payload = entry.model_dump(mode="json")
@@ -44,6 +55,9 @@ class WriteLog:
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(encoded)
                 handle.write("\n")
+                if self.durability_mode == DurabilityMode.LOG_SYNC:
+                    handle.flush()
+                    os.fsync(handle.fileno())
 
     def append_upsert(
         self,
