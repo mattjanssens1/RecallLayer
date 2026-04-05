@@ -46,6 +46,7 @@ class LocalSegmentCompactor:
         if not source_paths:
             raise ValueError("no sealed segments available for compaction")
 
+        # latest_rows: vector_id -> row payload (may be a tombstone)
         latest_rows: dict[str, dict[str, object]] = {}
         min_write_epoch: int | None = None
         max_write_epoch: int | None = None
@@ -60,10 +61,17 @@ class LocalSegmentCompactor:
                     vector_id = payload['vector_id']
                     write_epoch = int(payload.get('write_epoch', 0))
                     current = latest_rows.get(vector_id)
-                    if current is None or int(current.get('write_epoch', 0)) <= write_epoch:
+                    if current is None or int(current.get('write_epoch', 0)) < write_epoch:
                         latest_rows[vector_id] = payload
                     min_write_epoch = write_epoch if min_write_epoch is None else min(min_write_epoch, write_epoch)
                     max_write_epoch = write_epoch if max_write_epoch is None else max(max_write_epoch, write_epoch)
+
+        # Physical delete: remove tombstoned and superseded rows
+        live_rows = {
+            vid: row
+            for vid, row in latest_rows.items()
+            if not row.get('is_deleted', False)
+        }
 
         shard_dir = self.segments_root / collection_id / shard_id
         shard_dir.mkdir(parents=True, exist_ok=True)
@@ -73,8 +81,8 @@ class LocalSegmentCompactor:
         manifest_path = manifest_dir / f"{output_segment_id}.manifest.json"
 
         with segment_path.open('w', encoding='utf-8') as handle:
-            for local_docno, vector_id in enumerate(sorted(latest_rows)):
-                payload = dict(latest_rows[vector_id])
+            for local_docno, vector_id in enumerate(sorted(live_rows)):
+                payload = dict(live_rows[vector_id])
                 payload['local_docno'] = local_docno
                 handle.write(json.dumps(payload, separators=(",", ":")))
                 handle.write("\n")
@@ -85,8 +93,8 @@ class LocalSegmentCompactor:
             shard_id=shard_id,
             generation=generation,
             state=SegmentState.SEALED,
-            row_count=len(latest_rows),
-            live_row_count=len(latest_rows),
+            row_count=len(live_rows),
+            live_row_count=len(live_rows),
             deleted_row_count=0,
             embedding_version=embedding_version,
             quantizer_version=quantizer_version,

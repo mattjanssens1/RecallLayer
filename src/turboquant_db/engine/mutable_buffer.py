@@ -109,6 +109,11 @@ class MutableBuffer:
         with self._lock:
             return [entry for entry in self._entries.values() if not entry.record.is_deleted]
 
+    def all_entries(self) -> list[MutableBufferEntry]:
+        """Return all entries including tombstones."""
+        with self._lock:
+            return list(self._entries.values())
+
     def remove(self, vector_id: str) -> MutableBufferEntry | None:
         with self._lock:
             return self._entries.pop(vector_id, None)

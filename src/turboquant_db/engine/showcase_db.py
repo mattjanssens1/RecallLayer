@@ -37,6 +37,16 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
                 paths.append(str(path))
         return paths
 
+    def _query_snapshot(self, *, shard_id: str = "shard-0") -> tuple[list[str], int]:
+        """Capture a stable read snapshot at query entry.
+
+        Returns (segment_paths, mutable_watermark) captured atomically so that
+        concurrent manifest changes do not affect an in-flight query.
+        """
+        segment_paths = self._segment_paths(shard_id=shard_id)
+        mutable_watermark = self.mutable_buffer.watermark()
+        return segment_paths, mutable_watermark
+
     def _query_sealed_exactish(
         self,
         query_vector: list[float],
@@ -45,6 +55,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
         candidate_ids: set[str] | None = None,
+        snapshot_paths: list[str] | None = None,
     ) -> list[Candidate]:
         if candidate_ids is not None and not candidate_ids:
             return []
@@ -52,7 +63,8 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         filter_fn = build_filter_fn(filters or {})
         tombstoned_ids = self._tombstoned_vector_ids()
         candidates: list[Candidate] = []
-        for path in self._segment_paths(shard_id=shard_id):
+        paths = snapshot_paths if snapshot_paths is not None else self._segment_paths(shard_id=shard_id)
+        for path in paths:
             reader = SegmentReader(path)
             for indexed in reader.iter_indexed_vectors():
                 if indexed.vector_id in tombstoned_ids:
@@ -75,6 +87,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
         candidate_ids: set[str] | None = None,
+        snapshot_paths: list[str] | None = None,
     ) -> list[Candidate]:
         if candidate_ids is not None and not candidate_ids:
             return []
@@ -82,7 +95,8 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         filter_fn = build_filter_fn(filters or {})
         tombstoned_ids = self._tombstoned_vector_ids()
         candidates: list[Candidate] = []
-        for path in self._segment_paths(shard_id=shard_id):
+        paths = snapshot_paths if snapshot_paths is not None else self._segment_paths(shard_id=shard_id)
+        for path in paths:
             reader = SegmentReader(path)
             for indexed in reader.iter_indexed_vectors():
                 if indexed.vector_id in tombstoned_ids:
@@ -104,6 +118,8 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
     ) -> list[str]:
+        # Capture stable snapshot at query entry
+        snapshot_paths, _watermark = self._query_snapshot(shard_id=shard_id)
         result = run_hybrid_search(
             inputs=HybridSearchInputs(query_vector=query_vector, top_k=top_k, filters=filters),
             mutable_search=lambda vector, limit, filter_fn, candidate_ids: self.query_executor.search_exact(
@@ -118,6 +134,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
                 filters=sealed_filters,
                 shard_id=shard_id,
                 candidate_ids=candidate_ids,
+                snapshot_paths=snapshot_paths,
             ),
             mode="exact",
         )
@@ -131,6 +148,8 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
     ) -> list[str]:
+        # Capture stable snapshot at query entry
+        snapshot_paths, _watermark = self._query_snapshot(shard_id=shard_id)
         result = run_hybrid_search(
             inputs=HybridSearchInputs(query_vector=query_vector, top_k=top_k, filters=filters),
             mutable_search=lambda vector, limit, filter_fn, candidate_ids: self.query_executor.search_compressed(
@@ -145,6 +164,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
                 filters=sealed_filters,
                 shard_id=shard_id,
                 candidate_ids=candidate_ids,
+                snapshot_paths=snapshot_paths,
             ),
             mode="compressed",
         )
