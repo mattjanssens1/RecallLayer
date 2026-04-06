@@ -95,6 +95,25 @@ class CentroidIndex:
             candidates.update(self._buckets[idx].vector_ids)
         return candidates
 
+    @classmethod
+    def from_stored_data(
+        cls,
+        centroids: list[list[float]],
+        bucket_vector_ids: dict[str, list[str]],
+    ) -> CentroidIndex:
+        """Reconstruct a CentroidIndex from stored header data without re-running k-means."""
+        instance = cls.__new__(cls)
+        instance.n_clusters = len(centroids)
+        instance._buckets = [
+            CentroidBucket(
+                centroid=np.asarray(centroids[i], dtype=np.float32),
+                vector_ids=bucket_vector_ids.get(str(i), []),
+            )
+            for i in range(len(centroids))
+        ]
+        instance._built = True
+        return instance
+
     @property
     def is_built(self) -> bool:
         return self._built
