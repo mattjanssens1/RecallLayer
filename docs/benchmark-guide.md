@@ -25,6 +25,27 @@ python scripts/run_extended_benchmark.py
 python scripts/export_extended_diagnostics.py
 ```
 
+### Ground-truth matrix benchmark
+
+```bash
+python scripts/run_benchmark_matrix.py
+```
+
+This matrix benchmark writes:
+
+- `reports/benchmark-matrix.json`
+- `reports/benchmark-matrix.md`
+
+It is intended to compare exact / compressed / compressed-reranked behavior across:
+
+- dataset sizes
+- embedding dimensions
+- shard counts
+- delete ratios
+- IVF settings
+
+The benchmark uses per-query mean recall rather than flattened global prefixes, so multi-query Recall@K is measured correctly.
+
 ## Report outputs
 
 The scripts write Markdown and JSON artifacts under `reports/`.

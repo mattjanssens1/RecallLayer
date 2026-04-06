@@ -1,0 +1,626 @@
+[
+  {
+    "compressed": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 32.136494177393615,
+          "decode_loads": 16,
+          "decoded_vector_count": 2048,
+          "file_read_bytes": 359808,
+          "file_read_latency_ms": 2.251271973364055,
+          "file_reads": 16
+        }
+      },
+      "latency_ms": 7.1645397547399625,
+      "recall_at_1": 1.0,
+      "recall_at_10": 1.0,
+      "trace": {
+        "candidate_generation_count": 10.0,
+        "materialization_latency_ms": 3.459717372606974,
+        "merge_latency_ms": 0.024435379600618035,
+        "mode": "compressed-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.019761115254368633,
+        "rerank_candidate_count": 0.0,
+        "rerank_latency_ms": 0.0,
+        "result_count": 10.0,
+        "sealed_candidate_count": 10.0,
+        "sealed_search_latency_ms": 3.114743740297854
+      }
+    },
+    "deleted_rows": 0,
+    "exact": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 32.44854987133294,
+          "decode_loads": 16,
+          "decoded_vector_count": 2048,
+          "file_read_bytes": 359808,
+          "file_read_latency_ms": 2.0853999303653836,
+          "file_reads": 16
+        }
+      },
+      "latency_ms": 7.3457901235087775,
+      "recall_at_1": 1.0,
+      "recall_at_10": 1.0,
+      "trace": {
+        "candidate_generation_count": 10.0,
+        "materialization_latency_ms": 3.3420976396882907,
+        "merge_latency_ms": 0.012454125680960715,
+        "mode": "exact-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.029249757062643766,
+        "rerank_candidate_count": 0.0,
+        "rerank_latency_ms": 0.0,
+        "result_count": 10.0,
+        "sealed_candidate_count": 10.0,
+        "sealed_search_latency_ms": 3.479870007140562
+      }
+    },
+    "live_rows": 128,
+    "reranked": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 25.60386498225853,
+          "decode_loads": 24,
+          "decoded_vector_count": 3072,
+          "file_read_bytes": 539712,
+          "file_read_latency_ms": 1.984654983971268,
+          "file_reads": 24
+        }
+      },
+      "latency_ms": 5.793074247776531,
+      "recall_at_1": 1.0,
+      "recall_at_10": 1.0,
+      "trace": {
+        "candidate_generation_count": 40.0,
+        "materialization_latency_ms": 1.7200491201947443,
+        "merge_latency_ms": 0.06707861757604405,
+        "mode": "compressed-reranked-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.01216587406815961,
+        "rerank_candidate_count": 40.0,
+        "rerank_latency_ms": 2.0267857471480966,
+        "result_count": 10.0,
+        "sealed_candidate_count": 40.0,
+        "sealed_search_latency_ms": 1.6274474983219989
+      }
+    },
+    "scenario": {
+      "delete_ratio": 0.0,
+      "dimensions": 2,
+      "enable_ivf": false,
+      "ivf_n_clusters": 8,
+      "ivf_probe_k": 2,
+      "name": "small-2d-single-shard",
+      "query_count": 8,
+      "rerank_probe_k": null,
+      "shard_count": 1,
+      "size": 128,
+      "top_k": 10
+    },
+    "storage_bytes": 22904
+  },
+  {
+    "compressed": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 111.67817702516913,
+          "decode_loads": 16,
+          "decoded_vector_count": 8192,
+          "file_read_bytes": 2167680,
+          "file_read_latency_ms": 3.4341029240749776,
+          "file_reads": 16
+        }
+      },
+      "latency_ms": 12.224583308125148,
+      "recall_at_1": 1.0,
+      "recall_at_10": 0.96875,
+      "trace": {
+        "candidate_generation_count": 10.0,
+        "materialization_latency_ms": 9.543235497403657,
+        "merge_latency_ms": 0.011019063094863668,
+        "mode": "compressed-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.01696624531177804,
+        "rerank_candidate_count": 0.0,
+        "rerank_latency_ms": 0.0,
+        "result_count": 10.0,
+        "sealed_candidate_count": 10.0,
+        "sealed_search_latency_ms": 1.9889696995960549
+      }
+    },
+    "deleted_rows": 0,
+    "exact": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 212.91362296324223,
+          "decode_loads": 32,
+          "decoded_vector_count": 16384,
+          "file_read_bytes": 4335360,
+          "file_read_latency_ms": 7.715851068496704,
+          "file_reads": 32
+        }
+      },
+      "latency_ms": 20.594734567566775,
+      "recall_at_1": 1.0,
+      "recall_at_10": 1.0,
+      "trace": {
+        "candidate_generation_count": 10.0,
+        "materialization_latency_ms": 9.63506437256001,
+        "merge_latency_ms": 0.012591754057211801,
+        "mode": "exact-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.026542187697486952,
+        "rerank_candidate_count": 0.0,
+        "rerank_latency_ms": 0.0,
+        "result_count": 10.0,
+        "sealed_candidate_count": 10.0,
+        "sealed_search_latency_ms": 10.213144563749665
+      }
+    },
+    "live_rows": 512,
+    "reranked": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 211.34969394188374,
+          "decode_loads": 32,
+          "decoded_vector_count": 16384,
+          "file_read_bytes": 4335360,
+          "file_read_latency_ms": 7.230423914734274,
+          "file_reads": 32
+        }
+      },
+      "latency_ms": 22.059003749745898,
+      "recall_at_1": 1.0,
+      "recall_at_10": 0.9875,
+      "trace": {
+        "candidate_generation_count": 39.5,
+        "materialization_latency_ms": 9.238891489076195,
+        "merge_latency_ms": 0.022098498448031023,
+        "mode": "compressed-reranked-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.015022684237919748,
+        "rerank_candidate_count": 39.5,
+        "rerank_latency_ms": 9.048215553775663,
+        "result_count": 10.0,
+        "sealed_candidate_count": 39.5,
+        "sealed_search_latency_ms": 3.114685696345987
+      }
+    },
+    "scenario": {
+      "delete_ratio": 0.0,
+      "dimensions": 16,
+      "enable_ivf": true,
+      "ivf_n_clusters": 16,
+      "ivf_probe_k": 2,
+      "name": "medium-16d-ivf",
+      "query_count": 16,
+      "rerank_probe_k": 4,
+      "shard_count": 1,
+      "size": 512,
+      "top_k": 10
+    },
+    "storage_bytes": 135889
+  },
+  {
+    "compressed": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 42.991345981135964,
+          "decode_loads": 16,
+          "decoded_vector_count": 3280,
+          "file_read_bytes": 989120,
+          "file_read_latency_ms": 2.306757029145956,
+          "file_reads": 16
+        }
+      },
+      "latency_ms": 5.550268309889361,
+      "recall_at_1": 0.9375,
+      "recall_at_10": 0.925,
+      "trace": {
+        "candidate_generation_count": 9.8125,
+        "materialization_latency_ms": 3.8459057395812124,
+        "merge_latency_ms": 0.009594128641765565,
+        "mode": "compressed-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.011357311450410634,
+        "rerank_candidate_count": 0.0,
+        "rerank_latency_ms": 0.0,
+        "result_count": 9.8125,
+        "sealed_candidate_count": 9.8125,
+        "sealed_search_latency_ms": 1.32973837753525
+      }
+    },
+    "deleted_rows": 102,
+    "exact": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 88.4619039716199,
+          "decode_loads": 32,
+          "decoded_vector_count": 6560,
+          "file_read_bytes": 1978240,
+          "file_read_latency_ms": 3.949645033571869,
+          "file_reads": 32
+        }
+      },
+      "latency_ms": 8.609558943135198,
+      "recall_at_1": 1.0,
+      "recall_at_10": 1.0,
+      "trace": {
+        "candidate_generation_count": 10.0,
+        "materialization_latency_ms": 4.106120744836517,
+        "merge_latency_ms": 0.009054314432432875,
+        "mode": "exact-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.01650481135584414,
+        "rerank_candidate_count": 0.0,
+        "rerank_latency_ms": 0.0,
+        "result_count": 10.0,
+        "sealed_candidate_count": 10.0,
+        "sealed_search_latency_ms": 4.141924440773437
+      }
+    },
+    "live_rows": 410,
+    "reranked": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 83.70025391923264,
+          "decode_loads": 32,
+          "decoded_vector_count": 6560,
+          "file_read_bytes": 1978240,
+          "file_read_latency_ms": 4.333023098297417,
+          "file_reads": 32
+        }
+      },
+      "latency_ms": 10.609696317260386,
+      "recall_at_1": 1.0,
+      "recall_at_10": 1.0,
+      "trace": {
+        "candidate_generation_count": 39.0625,
+        "materialization_latency_ms": 3.7972485079080798,
+        "merge_latency_ms": 0.016840756870806217,
+        "mode": "compressed-reranked-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.012753574992530048,
+        "rerank_candidate_count": 39.0625,
+        "rerank_latency_ms": 4.083153184183175,
+        "result_count": 10.0,
+        "sealed_candidate_count": 39.0625,
+        "sealed_search_latency_ms": 2.247028318379307
+      }
+    },
+    "scenario": {
+      "delete_ratio": 0.2,
+      "dimensions": 16,
+      "enable_ivf": true,
+      "ivf_n_clusters": 16,
+      "ivf_probe_k": 2,
+      "name": "medium-16d-ivf-deletes",
+      "query_count": 16,
+      "rerank_probe_k": 6,
+      "shard_count": 2,
+      "size": 512,
+      "top_k": 10
+    },
+    "storage_bytes": 124489
+  },
+  {
+    "compressed": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 96.33268701145425,
+          "decode_loads": 24,
+          "decoded_vector_count": 6144,
+          "file_read_bytes": 2435712,
+          "file_read_latency_ms": 3.9163390174508095,
+          "file_reads": 24
+        }
+      },
+      "latency_ms": 7.666802072587113,
+      "recall_at_1": 0.9166666666666666,
+      "recall_at_10": 0.8541666666666666,
+      "trace": {
+        "candidate_generation_count": 9.875,
+        "materialization_latency_ms": 5.461853793046127,
+        "merge_latency_ms": 0.00935604233139505,
+        "mode": "compressed-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.014504628779832274,
+        "rerank_candidate_count": 0.0,
+        "rerank_latency_ms": 0.0,
+        "result_count": 9.875,
+        "sealed_candidate_count": 9.875,
+        "sealed_search_latency_ms": 1.6778578792582266
+      }
+    },
+    "deleted_rows": 102,
+    "exact": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 228.6273258505389,
+          "decode_loads": 48,
+          "decoded_vector_count": 12288,
+          "file_read_bytes": 4871424,
+          "file_read_latency_ms": 9.287938883062452,
+          "file_reads": 48
+        }
+      },
+      "latency_ms": 14.813138538253648,
+      "recall_at_1": 1.0,
+      "recall_at_10": 1.0,
+      "trace": {
+        "candidate_generation_count": 10.0,
+        "materialization_latency_ms": 6.735252912524932,
+        "merge_latency_ms": 0.012729544929849604,
+        "mode": "exact-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.024643673289877672,
+        "rerank_candidate_count": 0.0,
+        "rerank_latency_ms": 0.0,
+        "result_count": 10.0,
+        "sealed_candidate_count": 10.0,
+        "sealed_search_latency_ms": 7.363200042163953
+      }
+    },
+    "live_rows": 922,
+    "reranked": {
+      "cache_stats": {
+        "decoded_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "indexed_cache": {
+          "evictions": 0,
+          "hits": 0,
+          "invalidations": 0,
+          "max_size": 8,
+          "misses": 0,
+          "size": 0,
+          "writes": 0
+        },
+        "segment_reads": {
+          "decode_latency_ms": 212.86009321920574,
+          "decode_loads": 48,
+          "decoded_vector_count": 12288,
+          "file_read_bytes": 4871424,
+          "file_read_latency_ms": 7.802013715263456,
+          "file_reads": 48
+        }
+      },
+      "latency_ms": 14.883008550289864,
+      "recall_at_1": 1.0,
+      "recall_at_10": 1.0,
+      "trace": {
+        "candidate_generation_count": 39.791666666666664,
+        "materialization_latency_ms": 5.66432058015683,
+        "merge_latency_ms": 0.018488084606360644,
+        "mode": "compressed-reranked-hybrid",
+        "mutable_candidate_count": 0.0,
+        "mutable_search_latency_ms": 0.014099966695842644,
+        "rerank_candidate_count": 39.791666666666664,
+        "rerank_latency_ms": 6.436419452559979,
+        "result_count": 10.0,
+        "sealed_candidate_count": 39.791666666666664,
+        "sealed_search_latency_ms": 2.1817982099795095
+      }
+    },
+    "scenario": {
+      "delete_ratio": 0.1,
+      "dimensions": 32,
+      "enable_ivf": true,
+      "ivf_n_clusters": 32,
+      "ivf_probe_k": 3,
+      "name": "large-32d-ivf-multishard",
+      "query_count": 24,
+      "rerank_probe_k": 8,
+      "shard_count": 4,
+      "size": 1024,
+      "top_k": 10
+    },
+    "storage_bytes": 384253
+  }
+]

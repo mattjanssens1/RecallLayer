@@ -28,9 +28,14 @@ class ShowcaseScoredDatabase(ShowcaseRerankDatabase):
         top_k: int,
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
+        search_budget: int | None = None,
     ) -> list[Candidate]:
         ids = self.query_compressed_hybrid(
-            query_vector, top_k=top_k, filters=filters, shard_id=shard_id
+            query_vector,
+            top_k=top_k,
+            filters=filters,
+            shard_id=shard_id,
+            search_budget=search_budget,
         )
         return self._materialize_hits(ids=ids, query_vector=query_vector, shard_id=shard_id)
 
@@ -42,6 +47,7 @@ class ShowcaseScoredDatabase(ShowcaseRerankDatabase):
         candidate_k: int | None = None,
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
+        search_budget: int | None = None,
     ) -> list[Candidate]:
         ids = self.query_compressed_reranked_hybrid(
             query_vector,
@@ -49,6 +55,7 @@ class ShowcaseScoredDatabase(ShowcaseRerankDatabase):
             candidate_k=candidate_k,
             filters=filters,
             shard_id=shard_id,
+            search_budget=search_budget,
         )
         return self._materialize_hits(ids=ids, query_vector=query_vector, shard_id=shard_id)
 
