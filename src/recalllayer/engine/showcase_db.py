@@ -137,8 +137,6 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         )
         query_arr = np.asarray(query_vector, dtype=np.float32)
         for path in paths:
-            # Probe IVF (v2 segments only) → set of candidate vector_ids.
-            # Reconstruction from stored header is O(n_clusters), not O(N * k-means iterations).
             probed_vids: set[str] | None = None
             probed_cluster_ids: set[int] | None = None
             if self.enable_ivf:
@@ -161,14 +159,9 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
                 read_stats=self.segment_read_stats,
             )
 
-            # Source selection strategy:
-            # - Cache enabled (or no IVF): use iter_indexed_vectors — hits segment cache on
-            #   warm queries; IVF filter applied in memory on the already-loaded vectors.
-            # - Cache disabled + IVF enabled: use iter_cluster_vectors — physically skips
-            #   non-probed rows on disk, saving both I/O and decode cost.
             if probed_cluster_ids is not None and not self.enable_segment_cache:
                 source = reader.iter_cluster_vectors(probed_cluster_ids)
-                probed_vids = None  # cluster-aware read already limits to probed rows
+                probed_vids = None
             else:
                 source = reader.iter_indexed_vectors()
 
@@ -257,7 +250,6 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
     ) -> list[str]:
-        # Capture stable snapshot at query entry
         snapshot_paths, _watermark = self._query_snapshot(shard_id=shard_id)
         result = run_hybrid_search(
             inputs=HybridSearchInputs(query_vector=query_vector, top_k=top_k, filters=filters),
@@ -294,7 +286,6 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         probe_k: int | None = None,
         search_budget: int | None = None,
     ) -> list[str]:
-        # Capture stable snapshot at query entry
         snapshot_paths, _watermark = self._query_snapshot(shard_id=shard_id)
         result = run_hybrid_search(
             inputs=HybridSearchInputs(query_vector=query_vector, top_k=top_k, filters=filters),

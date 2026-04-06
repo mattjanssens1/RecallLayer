@@ -40,8 +40,6 @@ class ShowcaseRerankDatabase(ShowcaseLocalDatabase):
         search_budget: int | None = None,
     ) -> list[str]:
         candidate_k = max(candidate_k or (top_k * 4), top_k)
-        # Use a wider IVF probe for candidate generation so the reranker has
-        # enough true neighbours to choose from.  Fall back to ivf_probe_k*2.
         probe_k = self._rerank_probe_k if self._rerank_probe_k is not None else self.ivf_probe_k * 2
         candidate_ids = self.query_compressed_hybrid(
             query_vector,
