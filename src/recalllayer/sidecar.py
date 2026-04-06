@@ -403,7 +403,8 @@ class RecallLayerSidecar:
             root_dir=self.root_dir,
             collection_id=self.collection_id,
         )
-        restarted.recall_layer.recover()
+        for shard_id in self._known_shard_ids():
+            restarted.recall_layer.recover(shard_id=shard_id)
         return restarted
 
     def query_candidates(
@@ -462,9 +463,22 @@ class RecallLayerSidecar:
         return sorted(host_ids | vector_ids)
 
     def _known_vector_ids(self) -> set[str]:
-        mutable_ids = set(self.recall_layer.mutable_buffer._entries)
-        sealed_ids = set(self.recall_layer._sealed_vector_map().keys())
+        mutable_ids: set[str] = set()
+        sealed_ids: set[str] = set()
+        for shard_id in self._known_shard_ids():
+            mutable_ids.update(self.recall_layer._get_mutable_buffer(shard_id)._entries)
+            sealed_ids.update(self.recall_layer._sealed_vector_map(shard_id=shard_id).keys())
         return mutable_ids | sealed_ids
+
+    def _known_shard_ids(self) -> list[str]:
+        shard_ids = {"shard-0"}
+        manifest_dir = self.root_dir / "manifests" / self.collection_id
+        if manifest_dir.exists():
+            for path in manifest_dir.glob("*.manifest.json"):
+                shard_ids.add(path.name.replace(".manifest.json", ""))
+        for entry in self.recall_layer.write_log.replay():
+            shard_ids.add(entry.shard_id)
+        return sorted(shard_ids)
 
     @staticmethod
     def embed_text(text: str) -> list[float]:

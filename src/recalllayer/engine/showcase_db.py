@@ -28,10 +28,11 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
     def last_query_trace(self) -> dict[str, Any]:
         return dict(self._last_query_trace)
 
-    def _tombstoned_vector_ids(self) -> set[str]:
+    def _tombstoned_vector_ids(self, *, shard_id: str = "shard-0") -> set[str]:
+        buffer = self._get_mutable_buffer(shard_id)
         return {
             vector_id
-            for vector_id, entry in self.mutable_buffer._entries.items()
+            for vector_id, entry in buffer._entries.items()
             if entry.record.is_deleted
         }
 
@@ -62,7 +63,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         concurrent manifest changes do not affect an in-flight query.
         """
         segment_paths = self._segment_paths(shard_id=shard_id)
-        mutable_watermark = self.mutable_buffer.watermark()
+        mutable_watermark = self._get_mutable_buffer(shard_id).watermark()
         return segment_paths, mutable_watermark
 
     def _query_sealed_exactish(
@@ -79,7 +80,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
             return []
 
         filter_fn = build_filter_fn(filters or {})
-        tombstoned_ids = self._tombstoned_vector_ids()
+        tombstoned_ids = self._tombstoned_vector_ids(shard_id=shard_id)
         candidates: list[Candidate] = []
         paths = (
             snapshot_paths if snapshot_paths is not None else self._segment_paths(shard_id=shard_id)
@@ -130,7 +131,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
             return []
 
         filter_fn = build_filter_fn(filters or {})
-        tombstoned_ids = self._tombstoned_vector_ids()
+        tombstoned_ids = self._tombstoned_vector_ids(shard_id=shard_id)
         candidates: list[Candidate] = []
         paths = (
             snapshot_paths if snapshot_paths is not None else self._segment_paths(shard_id=shard_id)
@@ -254,7 +255,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         result = run_hybrid_search(
             inputs=HybridSearchInputs(query_vector=query_vector, top_k=top_k, filters=filters),
             mutable_search=lambda vector, limit, filter_fn, candidate_ids: (
-                self.query_executor.search_exact(
+                self._get_query_executor(shard_id).search_exact(
                     vector,
                     top_k=limit,
                     filter_fn=filter_fn,
@@ -290,7 +291,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         result = run_hybrid_search(
             inputs=HybridSearchInputs(query_vector=query_vector, top_k=top_k, filters=filters),
             mutable_search=lambda vector, limit, filter_fn, candidate_ids: (
-                self.query_executor.search_compressed(
+                self._get_query_executor(shard_id).search_compressed(
                     vector,
                     top_k=limit,
                     filter_fn=filter_fn,
