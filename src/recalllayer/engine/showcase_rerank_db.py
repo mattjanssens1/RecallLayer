@@ -37,6 +37,7 @@ class ShowcaseRerankDatabase(ShowcaseLocalDatabase):
         candidate_k: int | None = None,
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
+        search_budget: int | None = None,
     ) -> list[str]:
         candidate_k = max(candidate_k or (top_k * 4), top_k)
         # Use a wider IVF probe for candidate generation so the reranker has
@@ -48,6 +49,7 @@ class ShowcaseRerankDatabase(ShowcaseLocalDatabase):
             filters=filters,
             shard_id=shard_id,
             probe_k=probe_k,
+            search_budget=search_budget,
         )
         reranked = rerank_hybrid_candidates(
             candidate_ids=candidate_ids,

@@ -124,6 +124,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         candidate_ids: set[str] | None = None,
         snapshot_paths: list[str] | None = None,
         probe_k: int | None = None,
+        search_budget: int | None = None,
     ) -> list[Candidate]:
         if candidate_ids is not None and not candidate_ids:
             return []
@@ -182,6 +183,8 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
                 if not filter_fn(indexed.metadata):
                     continue
                 filtered.append(indexed)
+                if search_budget is not None and len(filtered) >= search_budget:
+                    break
 
             if not filtered:
                 continue
@@ -289,6 +292,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
         probe_k: int | None = None,
+        search_budget: int | None = None,
     ) -> list[str]:
         # Capture stable snapshot at query entry
         snapshot_paths, _watermark = self._query_snapshot(shard_id=shard_id)
@@ -311,6 +315,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
                     candidate_ids=candidate_ids,
                     snapshot_paths=snapshot_paths,
                     probe_k=probe_k,
+                    search_budget=search_budget,
                 )
             ),
             mode="compressed",
