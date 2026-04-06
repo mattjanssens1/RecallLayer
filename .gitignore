@@ -27,6 +27,10 @@ __pycache__/
 .test_cluster_benchmark-*/
 .test_highdim_benchmark-*/
 .test_xlarge_benchmark-*/
+.cache_sprint5-ivf-disabled/
+.cache_sprint5-ivf-enabled/
+reports/benchmark-matrix/
+reports/quantizer-tradeoffs/
 
 # Local report scratch artifacts can be regenerated if needed
 # (tracked report outputs remain addable explicitly)
