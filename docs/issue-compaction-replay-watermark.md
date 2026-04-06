@@ -86,3 +86,16 @@ This issue is done when:
 - recovery after compaction is tested
 - post-restart visibility after compaction is not in obvious tension with pre-restart visibility
 - the repo has a clearer lifecycle story across flush -> compaction -> recovery
+
+## Resolution (2026-04-06)
+
+**Status: CLOSED — resolved.**
+
+All acceptance criteria are met:
+
+- `CompactionExecutor.compact_shard()` updates the shard manifest with `replay_from_write_epoch = max(current_watermark, artifacts.segment_manifest.max_write_epoch)`. This ensures the watermark is monotonic and reflects the epoch range covered by the compacted segment.
+- `tests/unit/test_compaction_recovery_lifecycle.py` covers:
+  - watermark is aligned and monotonic after compaction
+  - watermark does not move backwards when older segments are compacted
+  - recovery after compaction with no new writes replays nothing
+  - recovery after compaction + new write replays only the newer tail

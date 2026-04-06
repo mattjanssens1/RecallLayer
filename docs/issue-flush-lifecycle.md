@@ -121,6 +121,20 @@ This issue is done when:
 - the repo has a clearer story for what recovery means in the current engine
 - the work produces a small, named set of recovery/lifecycle tests that future storage changes must keep green
 
+## Resolution (2026-04-06)
+
+**Status: CLOSED — resolved.**
+
+All acceptance criteria are met:
+
+- `flush_mutable` records `replay_from_write_epoch = segment_manifest.max_write_epoch` in the shard manifest on every flush. The watermark advances monotonically with each flush.
+- `LocalVectorDatabase.recover()` reads `replay_from_write_epoch` from the shard manifest and replays only write-log entries with `write_epoch > watermark`. Rows already represented in sealed segments are never replayed into mutable state.
+- `tests/unit/test_recovery_lifecycle.py` covers three named contract tests:
+  - restart after single flush → replays only post-flush writes
+  - restart after repeated flushes with no new writes → replays nothing
+  - restart after repeated flushes + new write → replays only the newer tail
+- Post-restart query visibility agrees with pre-restart visibility (sealed segments visible via manifest, unflushed tail visible via mutable replay).
+
 ## Nice-to-have
 
 - one concise lifecycle diagram or note connecting write log -> mutable -> flush -> sealed -> recovery

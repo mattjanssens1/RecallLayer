@@ -66,3 +66,17 @@ This issue is done when:
 - mutable tombstones mask matching sealed rows during hybrid query
 - delete visibility before and after restart is covered by tests
 - the repo has a clearer story for delete semantics across mutable + sealed state
+
+## Resolution (2026-04-06)
+
+**Status: CLOSED — resolved.**
+
+All acceptance criteria are met:
+
+- `SegmentReader._read_indexed_vectors()` skips `is_deleted` rows at the reader level, so tombstoned rows never surface from sealed segments.
+- `ShowcaseLocalDatabase._tombstoned_vector_ids()` collects mutable-buffer tombstones and passes them as a mask into `_query_sealed_exactish` and `_query_sealed_compressed`, masking stale sealed rows when a delete has not yet been flushed.
+- `tests/unit/test_hybrid_tombstone_masking.py` covers:
+  - delete after flush masks sealed row before restart
+  - delete after flush masks sealed row after restart
+  - delete + reupsert follows latest-write-wins
+  - tombstone masking still holds after compaction and restart
