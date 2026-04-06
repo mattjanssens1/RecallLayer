@@ -156,6 +156,7 @@ class LocalVectorDatabase:
                 shard_id=shard_id,
                 segment_id=f"seg-auto-{counter}",
                 generation=counter,
+                truncate_write_log=True,
             )
 
     def shard_live_row_fraction(self, *, shard_id: str = "shard-0") -> float | None:
