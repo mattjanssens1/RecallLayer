@@ -1,0 +1,112 @@
+# RecallLayer Sidecar — configuration reference
+#
+# All settings are read from environment variables (shown below with their
+# corresponding env var name).  This file documents every supported knob with
+# its default value and purpose.
+#
+# Copy to .env or export into the container environment.
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+
+# Directory where sealed segments and manifests are persisted.
+# Mount a durable volume here in production.
+# Env: RECALLLAYER_SIDECAR_ROOT_DIR
+# Default: .recalllayer_sidecar_http_db
+RECALLLAYER_SIDECAR_ROOT_DIR=/data/recalllayer
+
+# Logical collection name.  A single sidecar instance serves one collection.
+# Env: RECALLLAYER_COLLECTION_ID
+# Default: recalllayer-sidecar-demo
+RECALLLAYER_COLLECTION_ID=default
+
+# ---------------------------------------------------------------------------
+# Host repository (the primary database RecallLayer sits alongside)
+# ---------------------------------------------------------------------------
+
+# Which host repository adapter to use:
+#   inmemory  — in-memory demo store (no real database needed)
+#   postgres  — live PostgreSQL via psycopg3 (requires RECALLLAYER_POSTGRES_DSN)
+# Env: RECALLLAYER_HOST_REPOSITORY
+# Default: inmemory
+RECALLLAYER_HOST_REPOSITORY=postgres
+
+# PostgreSQL connection string (required when HOST_REPOSITORY=postgres).
+# Env: RECALLLAYER_POSTGRES_DSN
+# Default: (none)
+RECALLLAYER_POSTGRES_DSN=postgresql://user:password@localhost:5432/mydb
+
+# Table in PostgreSQL that holds canonical documents.
+# RecallLayer syncs embeddings from this table.
+# Env: RECALLLAYER_POSTGRES_TABLE
+# Default: documents
+RECALLLAYER_POSTGRES_TABLE=documents
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+
+# If set, every request must include the header: X-Api-Key: <value>
+# Leave empty to disable authentication (dev/internal deployments only).
+# Env: RECALLLAYER_API_KEY
+# Default: (none — auth disabled)
+RECALLLAYER_API_KEY=
+
+# ---------------------------------------------------------------------------
+# HTTP server
+# ---------------------------------------------------------------------------
+
+# Bind address for the uvicorn server.
+# Env: RECALLLAYER_HOST
+# Default: 0.0.0.0
+RECALLLAYER_HOST=0.0.0.0
+
+# Port the sidecar listens on.
+# Env: RECALLLAYER_PORT
+# Default: 8765
+RECALLLAYER_PORT=8765
+
+# Uvicorn log level: debug | info | warning | error | critical
+# Env: RECALLLAYER_LOG_LEVEL
+# Default: info
+RECALLLAYER_LOG_LEVEL=info
+
+# ---------------------------------------------------------------------------
+# Operational notes
+# ---------------------------------------------------------------------------
+#
+# Flush scheduling
+#   RecallLayer does not auto-schedule flushes on a timer — the caller
+#   triggers them via POST /v1/flush.  Recommended pattern: call /v1/flush
+#   after every N upserts (e.g. 10 000) or on a periodic cron job.
+#   Flushed segments are stored to RECALLLAYER_SIDECAR_ROOT_DIR and survive
+#   restarts.  The WAL is truncated after each flush, so it stays bounded.
+#
+# Compaction
+#   Call POST /v1/compact to merge small segments into larger ones.
+#   Compaction reduces sealed-segment count and improves query latency.
+#   Run compaction when the segment count exceeds ~10 or delete ratio > 0.2.
+#   Check GET /v1/status for current segment count and delete ratio.
+#
+# Recovery
+#   On startup, RecallLayer reads the shard manifest to determine the last
+#   flush watermark and replays only the post-flush write-log tail into
+#   mutable state.  No manual action is needed after a clean or unclean
+#   shutdown.  Use POST /v1/repair to trigger an explicit recovery audit if
+#   you suspect manifest/segment drift.
+#
+# Volumes
+#   RECALLLAYER_SIDECAR_ROOT_DIR must be on a persistent volume.  Without
+#   a durable mount, sealed segments are lost on container restart and
+#   RecallLayer returns an empty index.
+#
+# Sizing
+#   - Memory: the mutable buffer holds all un-flushed writes in RAM.
+#     With 10 000-vector flush thresholds and 128-dim float32 vectors,
+#     peak mutable-buffer cost is ~5 MB per flush cycle.
+#   - Disk: each sealed segment is a JSONL file.  At 128-dim float32,
+#     10 000 vectors ≈ 20 MB per segment.  Compaction merges segments
+#     and physically deletes tombstoned rows.
+#   - CPU: queries scan active segments linearly in Python.  Query latency
+#     scales with total vector count across active segments.

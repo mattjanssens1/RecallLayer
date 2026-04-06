@@ -1,0 +1,61 @@
+version: "3.9"
+
+# RecallLayer sidecar alongside PostgreSQL.
+#
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f recalllayer
+#
+# Environment variables can be placed in a .env file next to this file.
+# See config/config.yaml.example for all supported knobs.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-recallapp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-recallapp}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recallapp}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  recalllayer:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${RECALLLAYER_PORT:-8765}:8765"
+    volumes:
+      - recalllayer_data:/data/recalllayer
+    environment:
+      # Storage
+      RECALLLAYER_SIDECAR_ROOT_DIR: /data/recalllayer
+      RECALLLAYER_COLLECTION_ID: ${RECALLLAYER_COLLECTION_ID:-default}
+
+      # Host repository — set to "postgres" to use live PostgreSQL hydration.
+      RECALLLAYER_HOST_REPOSITORY: ${RECALLLAYER_HOST_REPOSITORY:-inmemory}
+      RECALLLAYER_POSTGRES_DSN: >-
+        postgresql://${POSTGRES_USER:-recallapp}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-recallapp}
+      RECALLLAYER_POSTGRES_TABLE: ${RECALLLAYER_POSTGRES_TABLE:-documents}
+
+      # Auth — set a non-empty value to require X-Api-Key on all requests.
+      RECALLLAYER_API_KEY: ${RECALLLAYER_API_KEY:-}
+
+      # Server
+      RECALLLAYER_HOST: 0.0.0.0
+      RECALLLAYER_PORT: 8765
+      RECALLLAYER_LOG_LEVEL: ${RECALLLAYER_LOG_LEVEL:-info}
+
+volumes:
+  postgres_data:
+  recalllayer_data:
