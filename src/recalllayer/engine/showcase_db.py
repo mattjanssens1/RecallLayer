@@ -123,6 +123,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         shard_id: str = "shard-0",
         candidate_ids: set[str] | None = None,
         snapshot_paths: list[str] | None = None,
+        probe_k: int | None = None,
     ) -> list[Candidate]:
         if candidate_ids is not None and not candidate_ids:
             return []
@@ -142,7 +143,11 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
             if self.enable_ivf:
                 ivf = self._get_ivf_from_header(path)
                 if ivf is not None and ivf.is_built:
-                    probed_vids = ivf.probe(query_arr, probe_k=self.ivf_probe_k)
+                    effective_probe_k = min(
+                        probe_k if probe_k is not None else self.ivf_probe_k,
+                        len(ivf._buckets),
+                    )
+                    probed_vids = ivf.probe(query_arr, probe_k=effective_probe_k)
                     probed_cluster_ids = {
                         i
                         for i, bucket in enumerate(ivf._buckets)
@@ -283,6 +288,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         top_k: int,
         filters: dict[str, Any] | None = None,
         shard_id: str = "shard-0",
+        probe_k: int | None = None,
     ) -> list[str]:
         # Capture stable snapshot at query entry
         snapshot_paths, _watermark = self._query_snapshot(shard_id=shard_id)
@@ -304,6 +310,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
                     shard_id=shard_id,
                     candidate_ids=candidate_ids,
                     snapshot_paths=snapshot_paths,
+                    probe_k=probe_k,
                 )
             ),
             mode="compressed",
