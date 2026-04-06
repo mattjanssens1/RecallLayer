@@ -28,11 +28,12 @@ class WriteOperation(StrEnum):
 class WriteLogEntry(BaseModel):
     """Single durable write-log entry."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     operation: WriteOperation
     collection_id: str
     vector_id: str
+    shard_id: str = "shard-0"
     write_epoch: int = Field(ge=0)
     metadata: dict[str, Any] = Field(default_factory=dict)
     embedding: list[float] | None = None
@@ -64,6 +65,7 @@ class WriteLog:
         *,
         collection_id: str,
         vector_id: str,
+        shard_id: str = "shard-0",
         write_epoch: int,
         embedding: list[float],
         metadata: dict[str, Any] | None = None,
@@ -72,6 +74,7 @@ class WriteLog:
             operation=WriteOperation.UPSERT,
             collection_id=collection_id,
             vector_id=vector_id,
+            shard_id=shard_id,
             write_epoch=write_epoch,
             embedding=embedding,
             metadata=metadata or {},
@@ -84,12 +87,14 @@ class WriteLog:
         *,
         collection_id: str,
         vector_id: str,
+        shard_id: str = "shard-0",
         write_epoch: int,
     ) -> WriteLogEntry:
         entry = WriteLogEntry(
             operation=WriteOperation.DELETE,
             collection_id=collection_id,
             vector_id=vector_id,
+            shard_id=shard_id,
             write_epoch=write_epoch,
         )
         self.append(entry)
@@ -124,7 +129,12 @@ class WriteLog:
         tmp.replace(self.path)
         return removed
 
-    def replay(self, *, after_write_epoch: int = 0) -> Iterable[WriteLogEntry]:
+    def replay(
+        self,
+        *,
+        after_write_epoch: int = 0,
+        shard_id: str | None = None,
+    ) -> Iterable[WriteLogEntry]:
         if not self.path.exists():
             return []
 
@@ -136,6 +146,8 @@ class WriteLog:
                     continue
                 entry = WriteLogEntry.model_validate_json(line)
                 if entry.write_epoch <= after_write_epoch:
+                    continue
+                if shard_id is not None and entry.shard_id != shard_id:
                     continue
                 entries.append(entry)
         return entries

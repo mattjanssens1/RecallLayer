@@ -62,7 +62,7 @@ class LocalVectorDatabase:
         self.segment_store = LocalSegmentStore(self.root_dir / "segments")
         self.segment_builder = SegmentBuilder(self.root_dir / "segments", quantizer=self.quantizer)
         self.recovery_manager = RecoveryManager(
-            write_log=self.write_log, mutable_buffer=self.mutable_buffer
+            write_log=self.write_log, mutable_buffer_provider=self._get_mutable_buffer
         )
         self.query_executor = QueryExecutor(
             mutable_buffer=self.mutable_buffer, quantizer=self.quantizer
@@ -93,6 +93,7 @@ class LocalVectorDatabase:
         self.write_log.append_upsert(
             collection_id=self.collection_id,
             vector_id=vector_id,
+            shard_id=shard_id,
             write_epoch=self._write_epoch,
             embedding=embedding,
             metadata=metadata or {},
@@ -104,6 +105,7 @@ class LocalVectorDatabase:
             embedding_version=self.embedding_version,
             quantizer_version=self.quantizer_version,
             write_epoch=self._write_epoch,
+            shard_id=shard_id,
         )
         self._maybe_auto_flush(shard_id=shard_id)
         return self._write_epoch
@@ -113,6 +115,7 @@ class LocalVectorDatabase:
         self.write_log.append_delete(
             collection_id=self.collection_id,
             vector_id=vector_id,
+            shard_id=shard_id,
             write_epoch=self._write_epoch,
         )
         self._get_mutable_buffer(shard_id).delete(
@@ -120,6 +123,7 @@ class LocalVectorDatabase:
             embedding_version=self.embedding_version,
             quantizer_version=self.quantizer_version,
             write_epoch=self._write_epoch,
+            shard_id=shard_id,
         )
         return self._write_epoch
 
@@ -302,9 +306,12 @@ class LocalVectorDatabase:
             embedding_version=self.embedding_version,
             quantizer_version=self.quantizer_version,
             after_write_epoch=replay_from_write_epoch,
+            shard_id=shard_id,
         )
         self._write_epoch = max(
-            self._write_epoch, self.mutable_buffer.watermark(), replay_from_write_epoch
+            self._write_epoch,
+            max((buffer.watermark() for buffer in self._shard_buffers.values()), default=0),
+            replay_from_write_epoch,
         )
         return applied
 
