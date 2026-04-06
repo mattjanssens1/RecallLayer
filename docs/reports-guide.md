@@ -36,3 +36,7 @@ python scripts/export_all_reports.py
 ## Why this matters
 
 A repository with multiple benchmark scripts becomes much easier to trust when the output directory has a clear mental model.
+
+If you want the current narrative interpretation of the main benchmark outputs, read:
+- `docs/benchmark-proof-story.md`
+- `docs/benchmark-proof-pack.md`

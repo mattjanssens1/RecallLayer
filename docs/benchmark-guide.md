@@ -61,6 +61,7 @@ Common outputs include:
 - recall differences between quantizers
 - latency differences between exact and compressed paths
 - traced API diagnostics for query behavior
+- `docs/benchmark-proof-story.md` for the canonical interpretation layer
 
 ## Recommended path for contributors
 
