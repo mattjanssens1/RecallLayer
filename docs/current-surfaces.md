@@ -36,8 +36,8 @@ Use `app_inspected.py` and `app_measured.py` when you explicitly want narrower e
 
 Use:
 
-- `src/turboquant_db/api/recalllayer_sidecar_app.py`
-- `uvicorn turboquant_db.api.recalllayer_sidecar_app:app --reload`
+- `src/recalllayer/api/recalllayer_sidecar_app.py`
+- `uvicorn recalllayer.api.recalllayer_sidecar_app:app --reload`
 
 This is the narrow product-shaped service surface for:
 - health checks
@@ -76,12 +76,14 @@ Use this when you want one small, reproducible benchmark artifact.
 Use:
 
 - `python examples/postgres_sidecar_flow.py`
-- `uvicorn turboquant_db.api.recalllayer_sidecar_app:app --host 127.0.0.1 --port 8001 --reload`
+- `python examples/postgres_sidecar_live.py`
+- `uvicorn recalllayer.api.recalllayer_sidecar_app:app --host 127.0.0.1 --port 8001 --reload`
 - `python examples/quickstart.py`
 
-`postgres_sidecar_flow.py` is now the canonical product-shaped example.
+`postgres_sidecar_flow.py` is still the easiest product-shaped example.
+`postgres_sidecar_live.py` is the honest local/dev path through a real Postgres `documents` table.
 The HTTP sidecar app is the clearest service-shaped surface.
-By default it uses an in-memory Postgres-shaped repository harness, but the repo now also includes an honest optional psycopg/Postgres adapter boundary for a real `documents` table path.
+By default it uses an in-memory Postgres-shaped repository harness, but the repo now also includes a live psycopg/Postgres harness for the same sidecar contract.
 
 ## Read these next
 

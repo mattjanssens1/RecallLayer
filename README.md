@@ -21,7 +21,6 @@ For the current canonical interpretation of the benchmark and tradeoff work, rea
 - `reports/benchmark-matrix.md`
 - `reports/quantizer-tradeoffs.md`
 
-
 Measured on a 5 000-vector, 128-dim fixture with scalar int8 quantization and segment cache enabled:
 
 | Query path | Latency | vs exact | Recall@10 |
@@ -73,6 +72,7 @@ If you want the shortest path through the repo, read these first:
 - `docs/postgres-recalllayer-architecture.md`
 - `docs/recalllayer-sidecar-http.md`
 - `docs/repair-backfill.md`
+- `docs/postgres-live-harness.md`
 - `docs/benchmark-proof-story.md`
 - `docs/benchmark-proof-pack.md`
 
@@ -125,6 +125,20 @@ Those surfaces intentionally use an in-memory Postgres-shaped repository harness
 - repair/backfill flows are explicit
 - restart/recovery and compaction are exercised against persisted RecallLayer state
 
+There is now also a live local/dev Postgres harness using the existing `recalllayer.sidecar.PsycopgPostgresRepository` path:
+- `python examples/postgres_sidecar_live.py`
+- `tests/integration/test_recalllayer_sidecar_postgres_live.py`
+
+Install the extra dependency and point the harness at a real Postgres DSN:
+
+```bash
+pip install -e .[dev,postgres]
+docker run --rm --name recalllayer-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=recalllayer -p 5432:5432 postgres:16-alpine
+export RECALLLAYER_LIVE_POSTGRES_DSN=postgresql://postgres:postgres@127.0.0.1:5432/recalllayer
+python examples/postgres_sidecar_live.py
+pytest tests/integration/test_recalllayer_sidecar_postgres_live.py -q
+```
+
 ## What this repo is trying to prove
 
 This repository is trying to prove that a focused retrieval sidecar can be built with:
@@ -146,8 +160,7 @@ This project already contains meaningful engine work around:
 - benchmark and proof workflows
 
 It is still early in areas such as:
-- a live Postgres-backed integration harness beyond the optional adapter boundary
-- production durability depth
+- production durability depth beyond the local/dev Postgres harness
 - operational maturity as a deployable product
 - large realistic workload validation
 
@@ -159,6 +172,7 @@ If you want the product-shaped story instead of just the engine story, read:
 - `docs/integration-contract.md`
 - `docs/postgres-recalllayer-architecture.md`
 - `docs/recalllayer-sidecar-http.md`
+- `docs/postgres-live-harness.md`
 - `docs/repair-backfill.md`
 
 ## Bottom line

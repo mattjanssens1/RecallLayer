@@ -14,6 +14,12 @@ Install:
 pip install -e .[dev]
 ```
 
+For the live Postgres harness/adapter path:
+
+```bash
+pip install -e .[dev,postgres]
+```
+
 ### Fastest path: in-memory host repository
 
 ```bash
@@ -178,8 +184,26 @@ from recalllayer.api.recalllayer_sidecar_app import create_recalllayer_sidecar_a
 from recalllayer.sidecar import PsycopgPostgresRepository, RecallLayerSidecar
 
 repo = PsycopgPostgresRepository.from_dsn("postgresql://user:pass@localhost:5432/app")
+repo.ensure_table()
 sidecar = RecallLayerSidecar(host_db=repo, root_dir=".recalllayer_sidecar_http_db")
 app = create_recalllayer_sidecar_app(sidecar=sidecar)
+```
+
+### Local/dev live harness
+
+```bash
+pip install -e .[dev,postgres]
+docker run --rm --name recalllayer-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=recalllayer -p 5432:5432 postgres:16-alpine
+export RECALLLAYER_POSTGRES_DSN=postgresql://postgres:postgres@127.0.0.1:5432/recalllayer
+python examples/postgres_sidecar_live.py
+pytest tests/integration/test_recalllayer_sidecar_postgres_live.py -q
+```
+
+If you prefer the test to launch its own disposable container, use:
+
+```bash
+pip install -e .[dev,postgres]
+RECALLLAYER_RUN_LIVE_POSTGRES_TESTS=1 pytest tests/integration/test_recalllayer_sidecar_postgres_live.py -q
 ```
 
 ## Current limits
@@ -197,4 +221,5 @@ Treat it as a practical local/dev sidecar service, not a finished hosted product
 
 - `docs/integration-contract.md`
 - `docs/postgres-recalllayer-architecture.md`
+- `docs/postgres-live-harness.md`
 - `docs/repair-backfill.md`
