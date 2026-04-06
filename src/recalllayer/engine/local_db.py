@@ -37,6 +37,9 @@ class LocalVectorDatabase:
         durability_mode: DurabilityMode = DurabilityMode.MEMORY,
         segment_cache_size: int = 8,
         enable_segment_cache: bool = True,
+        enable_ivf: bool = False,
+        ivf_n_clusters: int = 8,
+        ivf_probe_k: int = 2,
     ) -> None:
         self.collection_id = collection_id
         self.root_dir = Path(root_dir)
@@ -45,6 +48,9 @@ class LocalVectorDatabase:
         self.quantizer_version = quantizer_version
         self.quantizer = quantizer or ScalarQuantizer()
         self.enable_segment_cache = enable_segment_cache
+        self.enable_ivf = enable_ivf
+        self.ivf_n_clusters = ivf_n_clusters
+        self.ivf_probe_k = ivf_probe_k
 
         self.mutable_buffer = MutableBuffer(collection_id=collection_id)
         self.write_log = WriteLog(
@@ -220,9 +226,12 @@ class LocalVectorDatabase:
             embedding_version=self.embedding_version,
             quantizer_version=self.quantizer_version,
             entries=entries,
+            n_ivf_clusters=self.ivf_n_clusters if self.enable_ivf else None,
         )
         self.segment_cache.invalidate(_paths.segment_path)
         self.decoded_segment_cache.invalidate(_paths.segment_path)
+        if hasattr(self, "_segment_ivf_indexes"):
+            self._segment_ivf_indexes.pop(str(_paths.segment_path), None)
         now = datetime.now(timezone.utc)
         segment_manifest.state = SegmentState.ACTIVE
         segment_manifest.sealed_at = segment_manifest.sealed_at or now

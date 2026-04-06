@@ -3,6 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
+from recalllayer.engine.centroid_index import CentroidIndex
 from recalllayer.engine.hybrid_core import HybridSearchInputs, run_hybrid_search
 from recalllayer.engine.local_db import LocalVectorDatabase
 from recalllayer.engine.sealed_segments import SegmentReader
@@ -20,6 +23,7 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._last_query_trace: dict[str, Any] = {}
+        self._segment_ivf_indexes: dict[str, CentroidIndex] = {}
 
     def last_query_trace(self) -> dict[str, Any]:
         return dict(self._last_query_trace)
@@ -93,6 +97,23 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         candidates.sort(key=lambda item: item.score, reverse=True)
         return candidates[:top_k]
 
+    def _get_ivf_from_header(self, path: str) -> CentroidIndex | None:
+        """Return a CentroidIndex reconstructed from a v2 segment header (no k-means).
+
+        Returns None if the segment is v1 or has no cluster header.
+        """
+        if path in self._segment_ivf_indexes:
+            return self._segment_ivf_indexes[path]
+        reader = SegmentReader(path)
+        header = reader.read_v2_header()
+        if header is None:
+            return None
+        centroids = header.get("cluster_centroids", [])
+        bucket_vector_ids = header.get("bucket_vector_ids", {})
+        ivf = CentroidIndex.from_stored_data(centroids, bucket_vector_ids)
+        self._segment_ivf_indexes[path] = ivf
+        return ivf
+
     def _query_sealed_compressed(
         self,
         query_vector: list[float],
@@ -112,25 +133,62 @@ class ShowcaseLocalDatabase(LocalVectorDatabase):
         paths = (
             snapshot_paths if snapshot_paths is not None else self._segment_paths(shard_id=shard_id)
         )
+        query_arr = np.asarray(query_vector, dtype=np.float32)
         for path in paths:
+            # Probe IVF (v2 segments only) → set of candidate vector_ids.
+            # Reconstruction from stored header is O(n_clusters), not O(N * k-means iterations).
+            probed_vids: set[str] | None = None
+            probed_cluster_ids: set[int] | None = None
+            if self.enable_ivf:
+                ivf = self._get_ivf_from_header(path)
+                if ivf is not None and ivf.is_built:
+                    probed_vids = ivf.probe(query_arr, probe_k=self.ivf_probe_k)
+                    probed_cluster_ids = {
+                        i
+                        for i, bucket in enumerate(ivf._buckets)
+                        if any(vid in probed_vids for vid in bucket.vector_ids)
+                    }
+
             reader = SegmentReader(
                 path,
                 cache=self.segment_cache if self.enable_segment_cache else None,
                 read_stats=self.segment_read_stats,
             )
-            for indexed in reader.iter_indexed_vectors():
+
+            # Source selection strategy:
+            # - Cache enabled (or no IVF): use iter_indexed_vectors — hits segment cache on
+            #   warm queries; IVF filter applied in memory on the already-loaded vectors.
+            # - Cache disabled + IVF enabled: use iter_cluster_vectors — physically skips
+            #   non-probed rows on disk, saving both I/O and decode cost.
+            if probed_cluster_ids is not None and not self.enable_segment_cache:
+                source = reader.iter_cluster_vectors(probed_cluster_ids)
+                probed_vids = None  # cluster-aware read already limits to probed rows
+            else:
+                source = reader.iter_indexed_vectors()
+
+            filtered = []
+            for indexed in source:
                 if indexed.vector_id in tombstoned_ids:
                     continue
                 if candidate_ids is not None and indexed.vector_id not in candidate_ids:
                     continue
+                if probed_vids is not None and indexed.vector_id not in probed_vids:
+                    continue
                 if not filter_fn(indexed.metadata):
                     continue
-                score = self.quantizer.approx_score(
-                    query_vector=query_vector, encoded=indexed.encoded
-                )
+                filtered.append(indexed)
+
+            if not filtered:
+                continue
+
+            scores = self.quantizer.batch_approx_score(
+                query_vector, [iv.encoded for iv in filtered]
+            )
+            for iv, score in zip(filtered, scores):
                 candidates.append(
-                    Candidate(vector_id=indexed.vector_id, score=score, metadata=indexed.metadata)
+                    Candidate(vector_id=iv.vector_id, score=float(score), metadata=iv.metadata)
                 )
+
         candidates.sort(key=lambda item: item.score, reverse=True)
         return candidates[:top_k]
 

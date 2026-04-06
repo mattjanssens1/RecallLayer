@@ -28,6 +28,16 @@ class NormalizedScalarQuantizer(Quantizer):
         normalized = arr if norm == 0.0 else arr / norm
         return self.inner.approx_score(normalized.tolist(), encoded)
 
+    def batch_approx_score(
+        self,
+        query_vector: Sequence[float],
+        encoded_vectors: Sequence[EncodedVector],
+    ) -> np.ndarray:
+        arr = np.asarray(query_vector, dtype=np.float32)
+        norm = float(np.linalg.norm(arr))
+        normalized = arr if norm == 0.0 else arr / norm
+        return self.inner.batch_approx_score(normalized.tolist(), encoded_vectors)
+
 
 class ShiftedTurboQuantAdapter(TurboQuantAdapter):
     """Small experimental variant that shifts the rotation amount."""
