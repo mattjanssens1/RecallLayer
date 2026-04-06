@@ -299,6 +299,16 @@ class TestQuerySnapshotSemantics:
         assert any("seg-0" in p for p in paths)
         assert watermark >= 0
 
+    def test_snapshot_watermark_is_shard_local(self, tmp_path: Path) -> None:
+        db = _make_db(tmp_path)
+        db.upsert(vector_id="default", embedding=_vec(0.2))
+        db.upsert(vector_id="named", embedding=_vec(0.8), shard_id="shard-analytics")
+        db.upsert(vector_id="named-2", embedding=_vec(0.9), shard_id="shard-analytics")
+
+        _paths, watermark = db._query_snapshot(shard_id="shard-analytics")
+
+        assert watermark == db._get_mutable_buffer("shard-analytics").watermark()
+
     def test_concurrent_manifest_change_does_not_affect_inflight_query(self, tmp_path: Path) -> None:
         """Simulate a manifest swap after snapshot is captured; query should use snapshot."""
         db = _make_db(tmp_path)

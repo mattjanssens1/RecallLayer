@@ -21,7 +21,7 @@ def test_recovery_manager_replays_latest_state(tmp_path: Path) -> None:
     )
 
     buffer = MutableBuffer(collection_id="documents")
-    manager = RecoveryManager(write_log=write_log, mutable_buffer=buffer)
+    manager = RecoveryManager(write_log=write_log, mutable_buffer_provider=lambda _shard_id: buffer)
     applied = manager.replay(embedding_version="embed-v1", quantizer_version="tq-v0")
 
     assert applied == 2

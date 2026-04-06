@@ -166,7 +166,7 @@ def test_recovery_after_partial_maintenance_and_new_tail_write(tmp_path: Path) -
     assert recovered.query_exact_hybrid([1.0, 0.0], top_k=3) == ["a", "c", "b"]
 
 
-def test_recovery_preserves_tail_writes_even_before_shard_partitioned_mutable_replay(tmp_path: Path) -> None:
+def test_recovery_requires_per_shard_replay_for_tail_writes(tmp_path: Path) -> None:
     db = ShowcaseLocalDatabase(
         collection_id="documents",
         root_dir=tmp_path,
@@ -184,9 +184,12 @@ def test_recovery_preserves_tail_writes_even_before_shard_partitioned_mutable_re
         root_dir=tmp_path,
         durability_mode=DurabilityMode.LOG_SYNC,
     )
-    applied = recovered.recover()
+    applied_a = recovered.recover(shard_id="shard-0")
+    applied_b = recovered.recover(shard_id="shard-1")
 
-    assert applied == 3
+    assert applied_a == 1
+    assert applied_b == 1
     assert recovered.query_exact_hybrid([1.0, 0.0], top_k=3, shard_id="shard-0")[:2] == ["a", "tail-a"]
-    assert recovered.query_exact_hybrid([0.0, 1.0], top_k=3, shard_id="shard-1")[:1] == ["b"]
-    assert {entry.record.vector_id for entry in recovered.mutable_buffer.live_entries()} >= {"tail-a", "tail-b"}
+    assert recovered.query_exact_hybrid([0.0, 1.0], top_k=3, shard_id="shard-1")[:2] == ["b", "tail-b"]
+    assert {entry.record.vector_id for entry in recovered._get_mutable_buffer("shard-0").live_entries()} == {"tail-a"}
+    assert {entry.record.vector_id for entry in recovered._get_mutable_buffer("shard-1").live_entries()} == {"tail-b"}

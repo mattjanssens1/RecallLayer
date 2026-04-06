@@ -68,9 +68,10 @@ class ShowcaseScoredDatabase(ShowcaseRerankDatabase):
     ) -> list[Candidate]:
         materialize_start = perf_counter()
         sealed_vectors = self._sealed_vector_map(shard_id=shard_id)
+        mutable_buffer = self._get_mutable_buffer(shard_id)
         hits: list[Candidate] = []
         for vector_id in ids:
-            mutable_entry = self.mutable_buffer.get(vector_id)
+            mutable_entry = mutable_buffer.get(vector_id)
             if (
                 mutable_entry is not None
                 and not mutable_entry.record.is_deleted

@@ -86,3 +86,21 @@ def test_inspected_db_sealed_candidate_restriction_skips_rows_outside_candidate_
     assert [candidate.vector_id for candidate in exact] == ["sealed-2"]
     assert [candidate.vector_id for candidate in compressed] == ["sealed-2"]
     assert empty == []
+
+
+def test_inspected_db_named_shard_ignores_default_shard_mutable_state(tmp_path: Path) -> None:
+    db = InspectedShowcaseDatabase(collection_id="documents", root_dir=tmp_path)
+    db.upsert(vector_id="default-row", embedding=[1.0, 0.0], metadata={"region": "default"})
+    db.upsert(
+        vector_id="named-row",
+        embedding=[1.0, 0.0],
+        metadata={"region": "named"},
+        shard_id="shard-analytics",
+    )
+
+    result = db.query_exact_hybrid_inspected([1.0, 0.0], top_k=2, shard_id="shard-analytics")
+
+    assert [hit.vector_id for hit in result.hits] == ["named-row"]
+    assert result.inspection.mutable_live_count == 1
+    assert result.stats.mutable_hit_count == 1
+    assert result.stats.sealed_hit_count == 0

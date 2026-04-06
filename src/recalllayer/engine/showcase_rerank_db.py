@@ -49,11 +49,12 @@ class ShowcaseRerankDatabase(ShowcaseLocalDatabase):
             probe_k=probe_k,
             search_budget=search_budget,
         )
+        query_executor = self._get_query_executor(shard_id)
         reranked = rerank_hybrid_candidates(
             candidate_ids=candidate_ids,
             top_k=top_k,
             mutable_exact_search=lambda vector, limit, filter_fn, restricted_ids: (
-                self.query_executor.search_exact(
+                query_executor.search_exact(
                     vector,
                     top_k=limit,
                     filter_fn=filter_fn,

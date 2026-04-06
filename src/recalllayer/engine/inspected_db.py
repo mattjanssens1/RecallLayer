@@ -73,9 +73,9 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
         super().__init__(*args, **kwargs)
         self.filter_planner = filter_planner or FilterPlanner()
 
-    def _collect_mutable_rows(self) -> list[_MutableRow]:
+    def _collect_mutable_rows(self, *, shard_id: str) -> list[_MutableRow]:
         rows: list[_MutableRow] = []
-        for entry in self.mutable_buffer.live_entries():
+        for entry in self._get_mutable_buffer(shard_id).live_entries():
             if entry.embedding is None:
                 continue
             rows.append(
@@ -170,8 +170,9 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
     ) -> QueryInspectionResult:
         total_start = perf_counter()
         filter_fn = build_filter_fn(filters or {})
+        query_executor = self._get_query_executor(shard_id)
 
-        mutable_rows = self._collect_mutable_rows()
+        mutable_rows = self._collect_mutable_rows(shard_id=shard_id)
         sealed_segment_ids, sealed_rows = self._collect_sealed_rows(shard_id=shard_id)
         indexes = FilterIndexes(
             [
@@ -197,7 +198,7 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
         )
 
         if approximate:
-            mutable_search = lambda vector, limit, search_filter, candidate_ids: self.query_executor.search_compressed(
+            mutable_search = lambda vector, limit, search_filter, candidate_ids: query_executor.search_compressed(
                 vector,
                 top_k=limit,
                 filter_fn=search_filter,
@@ -211,7 +212,7 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
                 candidate_ids=candidate_ids,
             )
         else:
-            mutable_search = lambda vector, limit, search_filter, candidate_ids: self.query_executor.search_exact(
+            mutable_search = lambda vector, limit, search_filter, candidate_ids: query_executor.search_exact(
                 vector,
                 top_k=limit,
                 filter_fn=search_filter,
@@ -252,7 +253,7 @@ class InspectedShowcaseDatabase(ShowcaseScoredDatabase):
             rerank_result = rerank_hybrid_candidates(
                 candidate_ids=rerank_candidate_ids,
                 top_k=top_k,
-                mutable_exact_search=lambda vector, limit, search_filter, candidate_ids: self.query_executor.search_exact(
+                mutable_exact_search=lambda vector, limit, search_filter, candidate_ids: query_executor.search_exact(
                     vector,
                     top_k=limit,
                     filter_fn=search_filter,

@@ -87,3 +87,22 @@ def test_sidecar_compaction_and_restart_keep_query_and_hydration_stable(tmp_path
     assert [row["document_id"] for row in after_restart["hydrated_results"]] == [
         row["document_id"] for row in before_compaction["hydrated_results"]
     ]
+
+
+def test_sidecar_restart_recovers_non_default_shard_state(tmp_path: Path) -> None:
+    app = build_demo_state(tmp_path)
+    app.recall_layer.upsert(
+        vector_id="document:99",
+        embedding=app.embed_text("postgres analytics shard"),
+        metadata={"region": "us", "status": "published"},
+        shard_id="shard-analytics",
+    )
+
+    restarted = app.restart()
+    results = restarted.recall_layer.query_exact_hybrid(
+        app.embed_text("postgres analytics shard"),
+        top_k=2,
+        shard_id="shard-analytics",
+    )
+
+    assert results == ["document:99"]
