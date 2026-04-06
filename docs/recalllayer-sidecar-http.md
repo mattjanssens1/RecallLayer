@@ -14,19 +14,40 @@ Install:
 pip install -e .[dev]
 ```
 
-For the live Postgres harness/adaptor path:
+For the live Postgres harness/adapter path:
 
 ```bash
 pip install -e .[dev,postgres]
 ```
 
-Start the sidecar service with uvicorn:
+### Fastest path: in-memory host repository
 
 ```bash
 uvicorn recalllayer.api.recalllayer_sidecar_app:app --host 127.0.0.1 --port 8001 --reload
 ```
 
-Or without reload:
+### Config-driven startup
+
+The sidecar now supports environment-driven startup.
+
+Common variables:
+
+```bash
+export RECALLLAYER_SIDECAR_ROOT_DIR=.recalllayer_sidecar_http_db
+export RECALLLAYER_COLLECTION_ID=recalllayer-sidecar-demo
+export RECALLLAYER_HOST_REPOSITORY=inmemory   # or postgres
+export RECALLLAYER_POSTGRES_DSN=postgresql://user:pass@localhost:5432/app
+export RECALLLAYER_POSTGRES_TABLE=documents
+export RECALLLAYER_API_KEY=change-me          # optional
+```
+
+Then run:
+
+```bash
+uvicorn recalllayer.api.recalllayer_sidecar_app:app --host 127.0.0.1 --port 8001 --reload
+```
+
+Without reload:
 
 ```bash
 uvicorn recalllayer.api.recalllayer_sidecar_app:app --host 0.0.0.0 --port 8001
@@ -39,6 +60,8 @@ OpenAPI docs (while running):
 ## Current endpoints
 
 - `GET /healthz`
+- `GET /readyz`
+- `GET /v1/status`
 - `PUT /v1/documents/{document_id}`
 - `POST /v1/documents/{document_id}/sync`
 - `POST /v1/documents/{document_id}/unpublish`
@@ -49,6 +72,14 @@ OpenAPI docs (while running):
 - `POST /v1/flush`
 - `POST /v1/compact`
 
+If `RECALLLAYER_API_KEY` is set, write/query lifecycle endpoints require:
+
+```text
+x-api-key: <your-key>
+```
+
+Health/readiness remain open so local orchestration stays simple.
+
 ## Quick API examples
 
 ### Health
@@ -57,11 +88,18 @@ OpenAPI docs (while running):
 curl http://127.0.0.1:8001/healthz
 ```
 
+### Status
+
+```bash
+curl http://127.0.0.1:8001/v1/status
+```
+
 ### Upsert a host document and sync it into RecallLayer
 
 ```bash
 curl -X PUT http://127.0.0.1:8001/v1/documents/1 \
   -H 'content-type: application/json' \
+  -H 'x-api-key: change-me' \
   -d '{
     "title": "Postgres retrieval guide",
     "body": "How to hydrate ids from a RecallLayer sidecar.",
@@ -70,23 +108,12 @@ curl -X PUT http://127.0.0.1:8001/v1/documents/1 \
   }'
 ```
 
-### Add another document
-
-```bash
-curl -X PUT http://127.0.0.1:8001/v1/documents/2 \
-  -H 'content-type: application/json' \
-  -d '{
-    "title": "Backfill worker notes",
-    "body": "Repair and backfill keep the sidecar aligned with host truth.",
-    "region": "us"
-  }'
-```
-
 ### Query candidate ids and hydrated rows
 
 ```bash
 curl -X POST http://127.0.0.1:8001/v1/query \
   -H 'content-type: application/json' \
+  -H 'x-api-key: change-me' \
   -d '{
     "query_text": "postgres sidecar",
     "top_k": 2,
@@ -94,58 +121,13 @@ curl -X POST http://127.0.0.1:8001/v1/query \
   }'
 ```
 
-Example response shape:
-
-```json
-{
-  "query": "postgres sidecar",
-  "candidate_ids": ["document:1", "document:2"],
-  "candidates": [
-    {
-      "vector_id": "document:1",
-      "score": 0.99,
-      "metadata": {"region": "us", "status": "published", "source_table": "documents"}
-    }
-  ],
-  "hydrated_results": [
-    {
-      "document_id": "1",
-      "vector_id": "document:1",
-      "title": "Postgres retrieval guide",
-      "body": "How to hydrate ids from a RecallLayer sidecar.",
-      "region": "us",
-      "status": "published"
-    }
-  ]
-}
-```
-
 ### Flush mutable state into a sealed segment
 
 ```bash
 curl -X POST http://127.0.0.1:8001/v1/flush \
   -H 'content-type: application/json' \
+  -H 'x-api-key: change-me' \
   -d '{"segment_id": "seg-1", "generation": 1}'
-```
-
-### Unpublish a document in host truth and mirror that into RecallLayer
-
-```bash
-curl -X POST http://127.0.0.1:8001/v1/documents/1/unpublish
-```
-
-### Repair known drift for selected ids
-
-```bash
-curl -X POST http://127.0.0.1:8001/v1/repair \
-  -H 'content-type: application/json' \
-  -d '{"document_ids": ["1", "2"]}'
-```
-
-### Backfill everything currently present in the host repository
-
-```bash
-curl -X POST http://127.0.0.1:8001/v1/backfill
 ```
 
 ### Compact sealed segments
@@ -153,6 +135,7 @@ curl -X POST http://127.0.0.1:8001/v1/backfill
 ```bash
 curl -X POST http://127.0.0.1:8001/v1/compact \
   -H 'content-type: application/json' \
+  -H 'x-api-key: change-me' \
   -d '{
     "output_segment_id": "seg-merged",
     "generation": 2,
@@ -165,7 +148,7 @@ curl -X POST http://127.0.0.1:8001/v1/compact \
 
 The default HTTP app uses an in-memory host repository so the sidecar contract is runnable out of the box.
 
-The repo now also includes an explicit optional Postgres adapter boundary:
+The repo also includes an explicit optional Postgres adapter boundary:
 - `recalllayer.sidecar.PsycopgPostgresRepository`
 
 That adapter is intentionally honest:
@@ -185,7 +168,16 @@ create table documents (
 );
 ```
 
-If you want to instantiate the sidecar with that adapter, do it in Python today:
+### Running in Postgres mode
+
+```bash
+export RECALLLAYER_HOST_REPOSITORY=postgres
+export RECALLLAYER_POSTGRES_DSN=postgresql://user:pass@localhost:5432/app
+export RECALLLAYER_POSTGRES_TABLE=documents
+uvicorn recalllayer.api.recalllayer_sidecar_app:app --host 127.0.0.1 --port 8001 --reload
+```
+
+### Python instantiation path
 
 ```python
 from recalllayer.api.recalllayer_sidecar_app import create_recalllayer_sidecar_app
@@ -197,7 +189,7 @@ sidecar = RecallLayerSidecar(host_db=repo, root_dir=".recalllayer_sidecar_http_d
 app = create_recalllayer_sidecar_app(sidecar=sidecar)
 ```
 
-For a local/dev live harness, install the Postgres extra, run a disposable Postgres, and point the example or tests at it:
+### Local/dev live harness
 
 ```bash
 pip install -e .[dev,postgres]
@@ -213,6 +205,17 @@ If you prefer the test to launch its own disposable container, use:
 pip install -e .[dev,postgres]
 RECALLLAYER_RUN_LIVE_POSTGRES_TESTS=1 pytest tests/integration/test_recalllayer_sidecar_postgres_live.py -q
 ```
+
+## Current limits
+
+This is still a small service surface.
+It now has a better startup/config story and a minimal optional auth guard, but it is still not claiming:
+- full production hardening
+- deep operational observability
+- broad multi-tenant auth/authorization guarantees
+- managed deployment tooling
+
+Treat it as a practical local/dev sidecar service, not a finished hosted product.
 
 ## Recommended reading next
 

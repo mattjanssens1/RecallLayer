@@ -16,6 +16,11 @@ The intended production-shaped use case is:
 
 ## Benchmark results
 
+For the current canonical interpretation of the benchmark and tradeoff work, read:
+- `docs/benchmark-proof-story.md`
+- `reports/benchmark-matrix.md`
+- `reports/quantizer-tradeoffs.md`
+
 Measured on a 5 000-vector, 128-dim fixture with scalar int8 quantization and segment cache enabled:
 
 | Query path | Latency | vs exact | Recall@10 |
@@ -68,6 +73,7 @@ If you want the shortest path through the repo, read these first:
 - `docs/recalllayer-sidecar-http.md`
 - `docs/repair-backfill.md`
 - `docs/postgres-live-harness.md`
+- `docs/benchmark-proof-story.md`
 - `docs/benchmark-proof-pack.md`
 
 ## Best current surfaces
@@ -128,7 +134,7 @@ Install the extra dependency and point the harness at a real Postgres DSN:
 ```bash
 pip install -e .[dev,postgres]
 docker run --rm --name recalllayer-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=recalllayer -p 5432:5432 postgres:16-alpine
-export RECALLLAYER_POSTGRES_DSN=postgresql://postgres:postgres@127.0.0.1:5432/recalllayer
+export RECALLLAYER_LIVE_POSTGRES_DSN=postgresql://postgres:postgres@127.0.0.1:5432/recalllayer
 python examples/postgres_sidecar_live.py
 pytest tests/integration/test_recalllayer_sidecar_postgres_live.py -q
 ```
