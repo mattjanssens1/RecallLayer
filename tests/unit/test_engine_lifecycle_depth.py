@@ -79,7 +79,8 @@ class TestPhysicalDeleteCompaction:
 
         # Verify only live rows in compacted segment
         seg_path = artifacts.segment_path
-        rows = [json.loads(line) for line in seg_path.read_text().splitlines()]
+        all_rows = [json.loads(line) for line in seg_path.read_text().splitlines()]
+        rows = [r for r in all_rows if not r.get("__header__")]
         vector_ids = {r["vector_id"] for r in rows}
         assert "a" not in vector_ids
         assert "b" in vector_ids
@@ -123,7 +124,8 @@ class TestPhysicalDeleteCompaction:
             generation=2,
         )
 
-        rows = [json.loads(line) for line in artifacts.segment_path.read_text().splitlines()]
+        all_rows = [json.loads(line) for line in artifacts.segment_path.read_text().splitlines()]
+        rows = [r for r in all_rows if not r.get("__header__")]
         assert all(not r.get("is_deleted", False) for r in rows)
         assert all(r["vector_id"] != "x" for r in rows)
 
@@ -143,7 +145,8 @@ class TestPhysicalDeleteCompaction:
             output_segment_id="seg-merged",
             generation=2,
         )
-        rows = [json.loads(line) for line in artifacts.segment_path.read_text().splitlines()]
+        all_rows = [json.loads(line) for line in artifacts.segment_path.read_text().splitlines()]
+        rows = [r for r in all_rows if not r.get("__header__")]
         assert len(rows) == 1
         assert rows[0]["codes"] == [9]
 

@@ -42,6 +42,7 @@ class CompactionExecutor:
         generation: int = 1,
         embedding_version: str = "embed-v1",
         quantizer_version: str = "tq-v0",
+        n_ivf_clusters: int | None = None,
     ) -> CompactionExecutionResult | None:
         shard_manifest = self.manifest_store.load(collection_id=collection_id, shard_id=shard_id)
         if shard_manifest is None:
@@ -66,6 +67,7 @@ class CompactionExecutor:
             embedding_version=embedding_version,
             quantizer_version=quantizer_version,
             source_segment_ids=plan.candidate_segment_ids,
+            n_ivf_clusters=n_ivf_clusters,
         )
         artifacts.segment_manifest.state = SegmentState.ACTIVE
         self.segment_manifest_store.save(artifacts.segment_manifest)
