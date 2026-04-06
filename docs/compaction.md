@@ -1,26 +1,36 @@
-# Compaction
+# Compaction and Maintenance
 
-This adds a small local segment compactor for the sealed-segment prototype.
+RecallLayer now has two layers of maintenance logic:
 
-## New module
+## 1. Compaction planner / executor
 
-- `src/turboquant_db/engine/compactor.py`
+The existing compaction planner chooses candidate segments within a shard based on:
 
-## What it does
+- delete ratio
+- generation age
+- row count
 
-- scans all local sealed segments for a shard
-- keeps the latest row for each `vector_id` based on `write_epoch`
-- writes one merged sealed segment
-- publishes a shard manifest that activates the compacted segment
+The executor then materializes a replacement segment, retires old segments, and updates the shard manifest.
 
-## Current limits
+## 2. Adaptive maintenance policy
 
-This first cut is intentionally narrow:
+The newer adaptive maintenance layer ranks shards before compaction. It considers:
 
-- local file-backed segments only
-- latest-write-wins row merge only
-- no background scheduling
-- no checksum validation yet
-- no retired-segment cleanup yet
+- active segment count (fragmentation pressure)
+- delete ratio
+- total sealed-row pressure
+- mutable-buffer pressure
 
-It is a stepping stone toward the compaction and recovery-hardening milestone.
+This gives the engine a simple background-maintenance strategy instead of only a static yes/no threshold.
+
+## Why this matters
+
+A real storage engine should not only know *how* to compact; it should have a reasonable answer for *which shard to compact next* when multiple shards are eligible.
+
+## Main surfaces
+
+- `recalllayer.engine.compaction_planner.CompactionPlanner`
+- `recalllayer.engine.compaction_executor.CompactionExecutor`
+- `recalllayer.engine.compaction_policy.CompactionPolicy`
+- `recalllayer.engine.maintenance.AdaptiveMaintenancePlanner`
+- `recalllayer.engine.maintenance.AdaptiveMaintenancePolicy`
