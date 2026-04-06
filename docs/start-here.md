@@ -44,23 +44,33 @@ Use older app variants only when you explicitly want narrower experimental surfa
 
 If you want the product-shaped sidecar surface instead of the benchmark/demo API surface, use:
 
-- `src/turboquant_db/api/recalllayer_sidecar_app.py`
-- `uvicorn turboquant_db.api.recalllayer_sidecar_app:app --reload`
+- `src/recalllayer/api/recalllayer_sidecar_app.py`
+- `uvicorn recalllayer.api.recalllayer_sidecar_app:app --reload`
 
 ## 4. Quick run commands
 
 ```bash
 pip install -e .[dev]
 python examples/postgres_sidecar_flow.py
-uvicorn turboquant_db.api.recalllayer_sidecar_app:app --reload
+uvicorn recalllayer.api.recalllayer_sidecar_app:app --reload
 python examples/quickstart.py
 python scripts/run_best_api.py
 python scripts/run_canonical_flow.py
 python scripts/export_proof_pack.py
 ```
 
-The new sidecar example and sidecar HTTP app are the most product-shaped local walkthroughs.
+The sidecar example and sidecar HTTP app are the most product-shaped local walkthroughs.
 They demonstrate host-truth writes, sidecar sync, candidate retrieval, hydration, delete/unpublish handling, repair/backfill seams, and restart/compaction behavior.
+
+When you want the same flow against a live local Postgres instead of the in-memory harness, run:
+
+```bash
+pip install -e .[dev,postgres]
+docker run --rm --name recalllayer-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=recalllayer -p 5432:5432 postgres:16-alpine
+export RECALLLAYER_POSTGRES_DSN=postgresql://postgres:postgres@127.0.0.1:5432/recalllayer
+python examples/postgres_sidecar_live.py
+pytest tests/integration/test_recalllayer_sidecar_postgres_live.py -q
+```
 
 ## 5. Best docs after this one
 

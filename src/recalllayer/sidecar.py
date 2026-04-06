@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+import re
 
 try:  # pragma: no cover - import shape is tested via adapter behavior instead.
     import psycopg
@@ -144,13 +145,41 @@ class PsycopgPostgresRepository:
     - it is not presented as production-ready ORM or migration tooling
     """
 
+    _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
     def __init__(self, dsn: str, *, table_name: str = "documents") -> None:
         self.dsn = dsn
         self.table_name = table_name
+        self._validated_table_name = self._validate_identifier(table_name)
 
     @classmethod
     def from_dsn(cls, dsn: str, *, table_name: str = "documents") -> "PsycopgPostgresRepository":
         return cls(dsn, table_name=table_name)
+
+    @classmethod
+    def _validate_identifier(cls, identifier: str) -> str:
+        if not cls._SAFE_IDENTIFIER.match(identifier):
+            raise ValueError(
+                f"unsafe identifier {identifier!r}; use a simple Postgres identifier"
+            )
+        return identifier
+
+    def ensure_table(self) -> None:
+        sql = f"""
+        create table if not exists {self._validated_table_name} (
+            id text primary key,
+            title text not null,
+            body text not null,
+            region text not null,
+            status text not null default 'published'
+        )
+        """
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(sql)
+
+    def truncate_table(self) -> None:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(f"truncate table {self._validated_table_name}")
 
     def _connect(self):
         if psycopg is None:
@@ -170,7 +199,7 @@ class PsycopgPostgresRepository:
         status: str = "published",
     ) -> HostDocument:
         sql = f"""
-        insert into {self.table_name} (id, title, body, region, status)
+        insert into {self._validated_table_name} (id, title, body, region, status)
         values (%s, %s, %s, %s, %s)
         on conflict (id) do update set
             title = excluded.title,
@@ -186,7 +215,7 @@ class PsycopgPostgresRepository:
 
     def set_status(self, *, document_id: str, status: str) -> HostDocument:
         sql = f"""
-        update {self.table_name}
+        update {self._validated_table_name}
         set status = %s
         where id = %s
         returning id, title, body, region, status
@@ -199,7 +228,7 @@ class PsycopgPostgresRepository:
         return self._row_to_document(row)
 
     def get_document(self, document_id: str) -> HostDocument | None:
-        sql = f"select id, title, body, region, status from {self.table_name} where id = %s"
+        sql = f"select id, title, body, region, status from {self._validated_table_name} where id = %s"
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute(sql, (document_id,))
             row = cur.fetchone()
@@ -209,7 +238,7 @@ class PsycopgPostgresRepository:
 
     def delete_document(self, document_id: str) -> HostDocument | None:
         sql = (
-            f"delete from {self.table_name} "
+            f"delete from {self._validated_table_name} "
             "where id = %s returning id, title, body, region, status"
         )
         with self._connect() as conn, conn.cursor() as cur:
@@ -241,7 +270,7 @@ class PsycopgPostgresRepository:
         return hydrated
 
     def list_documents(self, *, include_unpublished: bool = True) -> list[HostDocument]:
-        sql = f"select id, title, body, region, status from {self.table_name}"
+        sql = f"select id, title, body, region, status from {self._validated_table_name}"
         params: tuple[Any, ...] = ()
         if not include_unpublished:
             sql += " where status = %s"
@@ -504,6 +533,46 @@ def build_demo_state(root_dir: str | Path) -> RecallLayerSidecar:
     host_db = InMemoryPostgresRepository()
     app = RecallLayerSidecar(host_db=host_db, root_dir=root_dir)
 
+    app.write_source_record(
+        document_id="1",
+        title="Postgres retrieval guide",
+        body="How to hydrate ids from a sidecar search index.",
+        region="us",
+    )
+    app.write_source_record(
+        document_id="2",
+        title="Python vector SDK",
+        body="Pytest and scripts for vector sync workers.",
+        region="us",
+    )
+    app.write_source_record(
+        document_id="3",
+        title="Music playlist",
+        body="A calm audio mix for late-night coding.",
+        region="ca",
+    )
+
+    for document_id in ["1", "2", "3"]:
+        app.sync_document(document_id)
+
+    return app
+
+
+def build_postgres_demo_state(
+    *,
+    dsn: str,
+    root_dir: str | Path,
+    table_name: str = "documents",
+    bootstrap_schema: bool = True,
+    reset_table: bool = False,
+) -> RecallLayerSidecar:
+    host_db = PsycopgPostgresRepository.from_dsn(dsn, table_name=table_name)
+    if bootstrap_schema:
+        host_db.ensure_table()
+    if reset_table:
+        host_db.truncate_table()
+
+    app = RecallLayerSidecar(host_db=host_db, root_dir=root_dir)
     app.write_source_record(
         document_id="1",
         title="Postgres retrieval guide",
