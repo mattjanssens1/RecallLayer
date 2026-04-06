@@ -1,8 +1,14 @@
 from pathlib import Path
 
+import pytest
 from fastapi.routing import APIRoute
+from fastapi.testclient import TestClient
 
-from recalllayer.api.recalllayer_sidecar_app import create_recalllayer_sidecar_app
+from recalllayer.api.recalllayer_sidecar_app import (
+    SidecarAppConfig,
+    build_sidecar_from_config,
+    create_recalllayer_sidecar_app,
+)
 from recalllayer.api.recalllayer_sidecar_schemas import (
     SidecarCompactionRequest,
     SidecarDocumentUpsertRequest,
@@ -26,6 +32,15 @@ def test_recalllayer_sidecar_http_flow_covers_health_sync_query_repair_and_compa
 
     health = route_endpoint(app, "/healthz", "GET")()
     assert health["status"] == "ok"
+    assert health["api_key_enabled"] is False
+
+    ready = route_endpoint(app, "/readyz", "GET")()
+    assert ready["status"] == "ready"
+
+    status_endpoint = route_endpoint(app, "/v1/status", "GET")
+    status_payload = status_endpoint()
+    assert status_payload["collection_id"] == "recalllayer-sidecar-demo"
+    assert status_payload["known_shard_ids"] == ["shard-0"]
 
     upsert_document = route_endpoint(app, "/v1/documents/{document_id}", "PUT")
     query = route_endpoint(app, "/v1/query", "POST")
@@ -101,3 +116,47 @@ def test_recalllayer_sidecar_http_flow_covers_health_sync_query_repair_and_compa
         SidecarQueryRequest(query_text="postgres sidecar", top_k=3, region="us")
     )
     assert [row.document_id for row in after_restart.hydrated_results] == ["1", "3"]
+
+
+def test_sidecar_http_api_optional_api_key_is_enforced(tmp_path: Path) -> None:
+    app = create_recalllayer_sidecar_app(
+        config=SidecarAppConfig(root_dir=tmp_path, api_key="secret-key")
+    )
+    client = TestClient(app)
+
+    health = client.get("/healthz")
+    assert health.status_code == 200
+    assert health.json()["api_key_enabled"] is True
+
+    blocked = client.post("/v1/query", json={"query_text": "postgres", "top_k": 1})
+    assert blocked.status_code == 401
+
+    allowed = client.post(
+        "/v1/query",
+        headers={"x-api-key": "secret-key"},
+        json={"query_text": "postgres", "top_k": 1},
+    )
+    assert allowed.status_code == 200
+
+
+def test_sidecar_http_config_can_build_inmemory_backend(tmp_path: Path) -> None:
+    sidecar = build_sidecar_from_config(
+        SidecarAppConfig(root_dir=tmp_path, collection_id="demo-http", host_repository="inmemory")
+    )
+
+    assert sidecar.collection_id == "demo-http"
+    assert sidecar.host_db.__class__.__name__ == "InMemoryPostgresRepository"
+
+
+def test_sidecar_http_config_requires_postgres_dsn_for_postgres_backend(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="RECALLLAYER_POSTGRES_DSN"):
+        build_sidecar_from_config(
+            SidecarAppConfig(root_dir=tmp_path, host_repository="postgres")
+        )
+
+
+def test_sidecar_http_config_rejects_unknown_backend(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="unsupported RECALLLAYER_HOST_REPOSITORY"):
+        build_sidecar_from_config(
+            SidecarAppConfig(root_dir=tmp_path, host_repository="sqlite")
+        )
