@@ -14,16 +14,22 @@ Install:
 pip install -e .[dev]
 ```
 
+For the live Postgres harness/adaptor path:
+
+```bash
+pip install -e .[dev,postgres]
+```
+
 Start the sidecar service with uvicorn:
 
 ```bash
-uvicorn turboquant_db.api.recalllayer_sidecar_app:app --host 127.0.0.1 --port 8001 --reload
+uvicorn recalllayer.api.recalllayer_sidecar_app:app --host 127.0.0.1 --port 8001 --reload
 ```
 
 Or without reload:
 
 ```bash
-uvicorn turboquant_db.api.recalllayer_sidecar_app:app --host 0.0.0.0 --port 8001
+uvicorn recalllayer.api.recalllayer_sidecar_app:app --host 0.0.0.0 --port 8001
 ```
 
 OpenAPI docs (while running):
@@ -160,7 +166,7 @@ curl -X POST http://127.0.0.1:8001/v1/compact \
 The default HTTP app uses an in-memory host repository so the sidecar contract is runnable out of the box.
 
 The repo now also includes an explicit optional Postgres adapter boundary:
-- `turboquant_db.sidecar.PsycopgPostgresRepository`
+- `recalllayer.sidecar.PsycopgPostgresRepository`
 
 That adapter is intentionally honest:
 - it requires `psycopg` to be installed separately
@@ -182,16 +188,35 @@ create table documents (
 If you want to instantiate the sidecar with that adapter, do it in Python today:
 
 ```python
-from turboquant_db.api.recalllayer_sidecar_app import create_recalllayer_sidecar_app
-from turboquant_db.sidecar import PsycopgPostgresRepository, RecallLayerSidecar
+from recalllayer.api.recalllayer_sidecar_app import create_recalllayer_sidecar_app
+from recalllayer.sidecar import PsycopgPostgresRepository, RecallLayerSidecar
 
 repo = PsycopgPostgresRepository.from_dsn("postgresql://user:pass@localhost:5432/app")
+repo.ensure_table()
 sidecar = RecallLayerSidecar(host_db=repo, root_dir=".recalllayer_sidecar_http_db")
 app = create_recalllayer_sidecar_app(sidecar=sidecar)
+```
+
+For a local/dev live harness, install the Postgres extra, run a disposable Postgres, and point the example or tests at it:
+
+```bash
+pip install -e .[dev,postgres]
+docker run --rm --name recalllayer-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=recalllayer -p 5432:5432 postgres:16-alpine
+export RECALLLAYER_POSTGRES_DSN=postgresql://postgres:postgres@127.0.0.1:5432/recalllayer
+python examples/postgres_sidecar_live.py
+pytest tests/integration/test_recalllayer_sidecar_postgres_live.py -q
+```
+
+If you prefer the test to launch its own disposable container, use:
+
+```bash
+pip install -e .[dev,postgres]
+RECALLLAYER_RUN_LIVE_POSTGRES_TESTS=1 pytest tests/integration/test_recalllayer_sidecar_postgres_live.py -q
 ```
 
 ## Recommended reading next
 
 - `docs/integration-contract.md`
 - `docs/postgres-recalllayer-architecture.md`
+- `docs/postgres-live-harness.md`
 - `docs/repair-backfill.md`

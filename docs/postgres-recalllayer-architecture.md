@@ -133,7 +133,7 @@ Recommended pattern:
 6. periodic repair job reconciles drift
 
 Concrete local shape now included in this repo:
-- `src/turboquant_db/sidecar_sync.py`
+- `src/recalllayer/sidecar_sync.py`
 - `tests/unit/test_sidecar_sync.py`
 
 That module does not claim production durability. It exists to make the intended `host DB truth -> event -> RecallLayer sync` path explicit and testable.
@@ -289,9 +289,11 @@ The current intended RecallLayer lifecycle is:
 
 The repo now includes a lightweight canonical version of this test story in:
 - `examples/postgres_sidecar_flow.py`
-- `src/turboquant_db/api/recalllayer_sidecar_app.py`
+- `examples/postgres_sidecar_live.py`
+- `src/recalllayer/api/recalllayer_sidecar_app.py`
 - `tests/integration/test_recalllayer_sidecar_flow.py`
 - `tests/integration/test_recalllayer_sidecar_http_api.py`
+- `tests/integration/test_recalllayer_sidecar_postgres_live.py`
 - `docs/repair-backfill.md`
 
 Covered today:
@@ -325,8 +327,12 @@ Covered today:
 
 Still worth adding later:
 - richer update/re-embedding ranking assertions
-- a real Postgres-backed harness or adapter once the dependency cost is worth it
 - broader repair/backfill job orchestration
+- stronger deployment and observability packaging around the live Postgres harness
+
+For the local/dev real-Postgres path, read:
+- `tests/integration/test_recalllayer_sidecar_postgres_live.py`
+- `docs/postgres-live-harness.md`
 
 ## Suggested deployment shapes
 
@@ -377,10 +383,10 @@ The repo now has:
 - a repair/backfill note describing how to rebuild RecallLayer from Postgres truth
 
 The main remaining architecture artifacts are:
-- a real Postgres-backed integration harness that talks to a live database
 - stronger deployment/observability depth for the HTTP sidecar
+- a more production-shaped migration/ops story around the Postgres adapter path
 
-The repo now includes an honest adapter boundary in `src/turboquant_db/sidecar.py` as `PsycopgPostgresRepository`, but it still stops short of claiming production-ready Postgres integration.
+The repo now includes a local/dev Postgres-backed integration harness in `src/recalllayer/sidecar.py` using `PsycopgPostgresRepository`, plus live integration coverage in `tests/integration/test_recalllayer_sidecar_postgres_live.py`. It still stops short of claiming production-ready Postgres integration.
 
 ## Final architecture summary
 
