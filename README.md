@@ -14,6 +14,24 @@ The intended production-shaped use case is:
 - RecallLayer returns candidate ids and scores
 - your application hydrates final records from the source database
 
+## Benchmark results
+
+Measured on a 5 000-vector, 128-dim fixture with scalar int8 quantization and segment cache enabled:
+
+| Query path | Latency | vs exact | Recall@10 |
+|---|---|---|---|
+| exact-hybrid | ~285 ms | — | 1.0 |
+| compressed-hybrid | ~177 ms | 1.6x faster | 1.0 |
+| compressed-hybrid + IVF | ~47 ms | **6x faster** | 1.0 |
+
+IVF uses a v2 clustered segment format — k-means runs at flush time, centroids and per-cluster byte offsets are stored in the segment header. At query time, IVF reconstruction is O(n_clusters) with no k-means, and only the probed cluster rows are scored.
+
+Run it yourself:
+
+```bash
+python scripts/run_sprint5_benchmark.py
+```
+
 ## What RecallLayer is
 
 RecallLayer is best understood as:
@@ -53,9 +71,9 @@ If you want the shortest path through the repo, read these first:
 
 ## Best current surfaces
 
-- **Best local facade:** `turboquant_db.showcase.ShowcaseScoredDatabase`
-- **Best API entrypoint:** `src/turboquant_db/api/app_best.py`
+- **Best local facade:** `recalllayer.engine.showcase_scored_db.ShowcaseScoredDatabase`
 - **Best benchmark workflow:** `python scripts/run_canonical_flow.py`
+- **Sprint 5 benchmark:** `python scripts/run_sprint5_benchmark.py`
 - **Best report export:** `python scripts/export_full_ladder.py`
 - **Best compact proof artifact:** `python scripts/export_proof_pack.py`
 
@@ -63,21 +81,21 @@ If you want the shortest path through the repo, read these first:
 
 ```bash
 # 1. Clone & install
-git clone https://github.com/mattjanssens1/TurboQuant-native-vector-database.git
-cd TurboQuant-native-vector-database
+git clone https://github.com/mattjanssens1/RecallLayer.git
+cd RecallLayer
 pip install -e .[dev]
 
 # 2. Run the sidecar-shaped example
 python examples/postgres_sidecar_flow.py
 
-# 3. Inspect the minimal sidecar HTTP surface
-uvicorn turboquant_db.api.recalllayer_sidecar_app:app --reload
-
-# 4. Run the smaller engine quickstart
+# 3. Run the smaller engine quickstart
 python examples/quickstart.py
 
-# 5. Run the canonical benchmark flow
+# 4. Run the canonical benchmark flow
 python scripts/run_canonical_flow.py
+
+# 5. Run the sprint 5 IVF benchmark
+python scripts/run_sprint5_benchmark.py
 
 # 6. Export one compact proof table
 python scripts/export_proof_pack.py
@@ -88,9 +106,7 @@ python scripts/export_proof_pack.py
 For the current product-shaped story, start with:
 
 - `python examples/postgres_sidecar_flow.py`
-- `uvicorn turboquant_db.api.recalllayer_sidecar_app:app --reload`
 - `tests/integration/test_recalllayer_sidecar_flow.py`
-- `tests/integration/test_recalllayer_sidecar_http_api.py`
 
 Those surfaces intentionally use an in-memory Postgres-shaped repository harness so the sidecar contract is easy to run locally:
 - host DB remains truth
@@ -115,7 +131,7 @@ This repository is trying to prove that a focused retrieval sidecar can be built
 
 This project already contains meaningful engine work around:
 - write log + mutable buffer behavior
-- sealed segment lifecycle
+- sealed segment lifecycle with v2 clustered IVF format
 - manifest-driven active state
 - recovery replay boundaries
 - compaction / retirement / garbage collection
@@ -138,16 +154,11 @@ If you want the product-shaped story instead of just the engine story, read:
 - `docs/recalllayer-sidecar-http.md`
 - `docs/repair-backfill.md`
 
-## Note on older naming
-
-Some repository paths, code symbols, and docs still use older TurboQuant-oriented wording.
-Those should currently be read as historical or internal technical references, not the primary product framing.
-
 ## Bottom line
 
 The strongest way to evaluate RecallLayer today is:
-1. run the canonical flow
-2. inspect the benchmark and proof outputs
+1. run the sprint 5 benchmark — compressed retrieval with IVF is 6x faster than exact at 5k vectors with full recall
+2. run the canonical flow and inspect the proof outputs
 3. read the integration contract
 4. read the Postgres + RecallLayer sidecar architecture
 5. judge it as a retrieval subsystem for existing stacks, not as a full database replacement
