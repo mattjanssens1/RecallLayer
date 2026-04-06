@@ -16,6 +16,12 @@ The intended production-shaped use case is:
 
 ## Benchmark results
 
+For the current canonical interpretation of the benchmark and tradeoff work, read:
+- `docs/benchmark-proof-story.md`
+- `reports/benchmark-matrix.md`
+- `reports/quantizer-tradeoffs.md`
+
+
 Measured on a 5 000-vector, 128-dim fixture with scalar int8 quantization and segment cache enabled:
 
 | Query path | Latency | vs exact | Recall@10 |
@@ -67,6 +73,7 @@ If you want the shortest path through the repo, read these first:
 - `docs/postgres-recalllayer-architecture.md`
 - `docs/recalllayer-sidecar-http.md`
 - `docs/repair-backfill.md`
+- `docs/benchmark-proof-story.md`
 - `docs/benchmark-proof-pack.md`
 
 ## Best current surfaces
