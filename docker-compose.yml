@@ -48,8 +48,29 @@ services:
         postgresql://${POSTGRES_USER:-recallapp}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-recallapp}
       RECALLLAYER_POSTGRES_TABLE: ${RECALLLAYER_POSTGRES_TABLE:-documents}
 
-      # Auth — set a non-empty value to require X-Api-Key on all requests.
+      # Auth — single-tenant: set X-Api-Key on all requests.
       RECALLLAYER_API_KEY: ${RECALLLAYER_API_KEY:-}
+      # Auth — multi-tenant: comma-separated list of "api_key:collection_id" pairs.
+      # When set, each key is isolated to its own collection namespace.
+      # Example: RECALLLAYER_TENANTS=keyA:col-a,keyB:col-b
+      RECALLLAYER_TENANTS: ${RECALLLAYER_TENANTS:-}
+
+      # Rate limiting — max requests per minute per API key (0 = disabled).
+      RECALLLAYER_RATE_LIMIT: ${RECALLLAYER_RATE_LIMIT:-0}
+
+      # Auto-flush scheduler — seconds between automatic flushes (0 = disabled).
+      RECALLLAYER_AUTO_FLUSH_INTERVAL_SEC: ${RECALLLAYER_AUTO_FLUSH_INTERVAL_SEC:-300}
+      # Also flush when the mutable buffer grows beyond this many upserts.
+      RECALLLAYER_AUTO_FLUSH_UPSERT_THRESHOLD: ${RECALLLAYER_AUTO_FLUSH_UPSERT_THRESHOLD:-10000}
+
+      # Dynamic IVF — auto-enable IVF when total live rows exceed this threshold.
+      # Set n_clusters = sqrt(N). Set to 0 to disable auto-IVF.
+      RECALLLAYER_IVF_AUTO_THRESHOLD: ${RECALLLAYER_IVF_AUTO_THRESHOLD:-50000}
+
+      # TLS — paths to cert and key files inside the container (leave empty for HTTP).
+      # Mount a volume containing your certs and set these paths accordingly.
+      RECALLLAYER_TLS_CERT: ${RECALLLAYER_TLS_CERT:-}
+      RECALLLAYER_TLS_KEY: ${RECALLLAYER_TLS_KEY:-}
 
       # Server
       RECALLLAYER_HOST: 0.0.0.0
