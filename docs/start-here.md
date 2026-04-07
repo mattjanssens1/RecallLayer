@@ -57,6 +57,7 @@ python examples/quickstart.py
 python scripts/run_best_api.py
 python scripts/run_canonical_flow.py
 python scripts/export_proof_pack.py
+python scripts/run_scale_benchmark.py --scale 100k --ivf
 ```
 
 The sidecar example and sidecar HTTP app are the most product-shaped local walkthroughs.
@@ -103,6 +104,9 @@ For broad orientation:
 - `tests/unit/test_flush_lifecycle.py`
 - `tests/unit/test_recovery_lifecycle.py`
 - `tests/unit/test_compaction_recovery_lifecycle.py`
+
+For integrity and crash recovery:
+- `tests/test_segment_integrity.py` — checksum verification, WAL replay, filter index presence
 
 For API behavior:
 - `tests/integration/test_recalllayer_sidecar_flow.py`

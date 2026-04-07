@@ -145,6 +145,31 @@ The goal is to turn it into a believable and testable retrieval subsystem.
 - metrics and operational notes
 - deployment guide and troubleshooting notes
 
+### Progress
+
+Completed in this phase:
+- **On-disk filter indexes** (`src/recalllayer/filters/filter_index_store.py`): companion
+  `.filter_index.json` written alongside every sealed segment at flush time. Loads back as
+  `FilterIndexes` without scanning the full JSONL — groundwork for pre-filter acceleration.
+- **Scale benchmark** (`scripts/run_scale_benchmark.py`): validated IVF vs full-scan at
+  10k → 100k+ vectors with p50/p95/p99 latency, throughput, and recall tracking.
+  `src/recalllayer/benchmark/scale_fixtures.py` generates clustered fixtures at any scale.
+- **Prometheus `/metrics` endpoint**: `GET /metrics` on the HTTP sidecar returns segment
+  count, mutable buffer size, delete ratio, storage bytes, request counters, and query
+  latency p50/p95/p99 in Prometheus text format. No external dependency required.
+- **Auto-flush background task**: set `RECALLLAYER_AUTO_FLUSH_INTERVAL_SECONDS` env var;
+  the sidecar starts an asyncio task that flushes the mutable buffer on that interval.
+- **Segment checksum hardening**: `SegmentManifest.content_sha256` computed and stored at
+  flush time (both v1 and v2/IVF paths). `LocalVectorDatabase.verify_segment_integrity()`
+  checks all active segments against stored checksums.
+- **Crash recovery tests** (`tests/test_segment_integrity.py`, 14 tests): WAL replay
+  after unclean shutdown, watermark boundary correctness, idempotent recovery, corruption
+  detection, filter index file presence and tombstone exclusion.
+
+Remaining:
+- ANN-coupled pre-filter using the filter indexes at query time
+- filter-heavy workload benchmarks
+
 ### Exit criteria
 
 - p95 query latency improves over earlier retrieval paths
