@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import math
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -446,3 +447,53 @@ class LocalVectorDatabase:
     def clear_segment_caches(self) -> None:
         self.segment_cache.clear()
         self.decoded_segment_cache.clear()
+
+    # ------------------------------------------------------------------
+    # Integrity verification
+    # ------------------------------------------------------------------
+
+    def verify_segment_integrity(self, *, shard_id: str = "shard-0") -> list[str]:
+        """Verify SHA-256 checksums for all active sealed segments in *shard_id*.
+
+        Returns a list of error strings for any segment whose on-disk content does
+        not match the ``content_sha256`` stored in its manifest.  An empty list
+        means all checksums passed (or no segments carry a checksum yet).
+        """
+        errors: list[str] = []
+        shard_manifest = self.manifest_store.load(
+            collection_id=self.collection_id, shard_id=shard_id
+        )
+        if shard_manifest is None:
+            return errors
+
+        active_ids = set(shard_manifest.active_segment_ids)
+        segment_manifests = self.segment_manifest_store.list_manifests(
+            collection_id=self.collection_id, shard_id=shard_id
+        )
+        for seg_manifest in segment_manifests:
+            if seg_manifest.segment_id not in active_ids:
+                continue
+            if not seg_manifest.content_sha256:
+                continue  # legacy segment written before checksums were added
+            segment_files = self.segment_store.list_segment_files(
+                collection_id=self.collection_id, shard_id=shard_id
+            )
+            matching = [
+                p for p in segment_files
+                if p.stem.split(".")[0] == seg_manifest.segment_id
+                or p.name.startswith(seg_manifest.segment_id + ".")
+            ]
+            if not matching:
+                errors.append(
+                    f"segment {seg_manifest.segment_id!r}: file not found on disk"
+                )
+                continue
+            seg_path = matching[0]
+            actual_sha256 = hashlib.sha256(seg_path.read_bytes()).hexdigest()
+            if actual_sha256 != seg_manifest.content_sha256:
+                errors.append(
+                    f"segment {seg_manifest.segment_id!r}: checksum mismatch "
+                    f"(expected {seg_manifest.content_sha256!r}, "
+                    f"got {actual_sha256!r})"
+                )
+        return errors

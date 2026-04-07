@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from recalllayer.api.recalllayer_sidecar_app import (
@@ -9,113 +8,104 @@ from recalllayer.api.recalllayer_sidecar_app import (
     build_sidecar_from_config,
     create_recalllayer_sidecar_app,
 )
-from recalllayer.api.recalllayer_sidecar_schemas import (
-    SidecarCompactionRequest,
-    SidecarDocumentUpsertRequest,
-    SidecarFlushRequest,
-    SidecarQueryRequest,
-    SidecarRepairRequest,
-)
-
-
-def route_endpoint(app, path: str, method: str):
-    for route in app.routes:
-        if isinstance(route, APIRoute) and route.path == path and method in route.methods:
-            return route.endpoint
-    raise AssertionError(f"route not found: {method} {path}")
+from recalllayer.api.recalllayer_sidecar_schemas import SidecarFlushRequest
 
 
 def test_recalllayer_sidecar_http_flow_covers_health_sync_query_repair_and_compaction(
     tmp_path: Path,
 ) -> None:
     app = create_recalllayer_sidecar_app(root_dir=tmp_path)
+    client = TestClient(app)
 
-    health = route_endpoint(app, "/healthz", "GET")()
+    health = client.get("/healthz").json()
     assert health["status"] == "ok"
     assert health["api_key_enabled"] is False
 
-    ready = route_endpoint(app, "/readyz", "GET")()
+    ready = client.get("/readyz").json()
     assert ready["status"] == "ready"
 
-    status_endpoint = route_endpoint(app, "/v1/status", "GET")
-    status_payload = status_endpoint()
+    status_payload = client.get("/v1/status").json()
     assert status_payload["collection_id"] == "recalllayer-sidecar-demo"
     assert status_payload["known_shard_ids"] == ["shard-0"]
 
-    upsert_document = route_endpoint(app, "/v1/documents/{document_id}", "PUT")
-    query = route_endpoint(app, "/v1/query", "POST")
-    flush = route_endpoint(app, "/v1/flush", "POST")
-    compact = route_endpoint(app, "/v1/compact", "POST")
-    repair = route_endpoint(app, "/v1/repair", "POST")
-
-    upsert_one = upsert_document(
-        "1",
-        SidecarDocumentUpsertRequest(
-            title="Postgres retrieval guide",
-            body="How to hydrate ids from a sidecar search index.",
-            region="us",
-        ),
-    )
+    upsert_one = client.put(
+        "/v1/documents/1",
+        json={
+            "title": "Postgres retrieval guide",
+            "body": "How to hydrate ids from a sidecar search index.",
+            "region": "us",
+            "status": "published",
+        },
+    ).json()
     assert upsert_one["vector_id"] == "document:1"
 
-    upsert_document(
-        "2",
-        SidecarDocumentUpsertRequest(
-            title="Postgres repair worker",
-            body="Repair jobs and backfill keep host truth ahead of the sidecar.",
-            region="us",
-        ),
+    client.put(
+        "/v1/documents/2",
+        json={
+            "title": "Postgres repair worker",
+            "body": "Repair jobs and backfill keep host truth ahead of the sidecar.",
+            "region": "us",
+            "status": "published",
+        },
     )
 
-    initial = query(SidecarQueryRequest(query_text="postgres sidecar", top_k=2, region="us"))
-    assert initial.candidate_ids == ["document:1", "document:2"]
+    initial = client.post(
+        "/v1/query", json={"query_text": "postgres sidecar", "top_k": 2, "region": "us"}
+    ).json()
+    assert initial["candidate_ids"] == ["document:1", "document:2"]
 
-    flushed = flush(SidecarFlushRequest(segment_id="seg-1", generation=1))
+    flushed = client.post(
+        "/v1/flush", json={"segment_id": "seg-1", "generation": 1}
+    ).json()
     assert flushed["active_segment_ids"] == ["seg-1"]
 
-    upsert_document(
-        "3",
-        SidecarDocumentUpsertRequest(
-            title="Postgres backfill flow",
-            body="Backfill can rebuild a search sidecar from host rows.",
-            region="us",
-        ),
+    client.put(
+        "/v1/documents/3",
+        json={
+            "title": "Postgres backfill flow",
+            "body": "Backfill can rebuild a search sidecar from host rows.",
+            "region": "us",
+            "status": "published",
+        },
     )
-    flush(SidecarFlushRequest(segment_id="seg-2", generation=2))
+    client.post("/v1/flush", json={"segment_id": "seg-2", "generation": 2})
 
-    compacted = compact(
-        SidecarCompactionRequest(
-            output_segment_id="seg-merged",
-            generation=3,
-            min_segment_count=2,
-        )
-    )
+    compacted = client.post(
+        "/v1/compact",
+        json={"output_segment_id": "seg-merged", "generation": 3, "min_segment_count": 2},
+    ).json()
     assert compacted["compacted"] is True
     assert compacted["result"]["active_segment_ids"] == ["seg-merged"]
 
+    # Delete doc 2 from host DB directly (simulates external deletion)
     app.state.sidecar.host_db.delete_document("2")
 
-    stale = query(SidecarQueryRequest(query_text="postgres repair worker", top_k=2, region="us"))
-    assert "document:2" in stale.candidate_ids
-    assert [row.document_id for row in stale.hydrated_results] == ["1"]
+    stale = client.post(
+        "/v1/query", json={"query_text": "postgres repair worker", "top_k": 2, "region": "us"}
+    ).json()
+    assert "document:2" in stale["candidate_ids"]
+    hydrated_ids = [row["document_id"] for row in stale["hydrated_results"]]
+    assert hydrated_ids == ["1"]
 
-    repaired = repair(SidecarRepairRequest())
+    repaired = client.post("/v1/repair", json={}).json()
     assert "document:2" in repaired["synced_vector_ids"]
 
-    converged = query(
-        SidecarQueryRequest(query_text="postgres repair worker", top_k=2, region="us")
-    )
-    assert "document:2" not in converged.candidate_ids
+    converged = client.post(
+        "/v1/query", json={"query_text": "postgres repair worker", "top_k": 2, "region": "us"}
+    ).json()
+    assert "document:2" not in converged["candidate_ids"]
 
+    # Restart: rebuild from persisted state
     restarted_app = create_recalllayer_sidecar_app(
         sidecar=app.state.sidecar.restart(),
         root_dir=tmp_path,
     )
-    restarted_query = route_endpoint(restarted_app, "/v1/query", "POST")
-    after_restart = restarted_query(
-        SidecarQueryRequest(query_text="postgres sidecar", top_k=3, region="us")
-    )
-    assert [row.document_id for row in after_restart.hydrated_results] == ["1", "3"]
+    restarted_client = TestClient(restarted_app)
+    after_restart = restarted_client.post(
+        "/v1/query", json={"query_text": "postgres sidecar", "top_k": 3, "region": "us"}
+    ).json()
+    doc_ids = [row["document_id"] for row in after_restart["hydrated_results"]]
+    assert doc_ids == ["1", "3"]
 
 
 def test_sidecar_http_api_optional_api_key_is_enforced(tmp_path: Path) -> None:

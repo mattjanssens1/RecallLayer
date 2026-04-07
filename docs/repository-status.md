@@ -19,6 +19,11 @@ The repository already contains real work around:
 - flush lifecycle semantics
 - replay watermark recovery semantics
 - compaction / retirement / garbage collection lifecycle work
+- on-disk per-segment filter indexes (companion `.filter_index.json` written at flush time)
+- segment checksum verification (`content_sha256` in manifest, `verify_segment_integrity()`)
+- crash-recovery test coverage: WAL replay, watermark correctness, idempotent recovery
+- Prometheus-compatible `/metrics` endpoint (segment count, delete ratio, request counters, latency p50/p95/p99)
+- auto-flush background task in the HTTP sidecar (`RECALLLAYER_AUTO_FLUSH_INTERVAL_SECONDS`)
 
 ## Strongest credible use today
 
@@ -42,13 +47,11 @@ These areas already exist in meaningful form but are still evolving:
 ## Still prototype-level or incomplete
 
 These areas should still be read as prototype or incomplete:
-- broader black-box sidecar integration testing beyond the canonical flow
-- operational maturity as a deployed service
-- larger and more realistic benchmark datasets
-- deeper durability and checkpointing story
+- on-disk posting-list filter indexes (in-memory FilterIndexes and companion filter_index.json exist; no ANN-coupled pre-filter acceleration yet)
 - distributed deployment story
 - rich production security / tenancy / admin surfaces
 - broad claims of algorithmic leadership or full paper fidelity
+- large-scale (1M+) workload validation beyond the scale benchmark script
 
 ## How to read the repo honestly
 
@@ -73,11 +76,10 @@ The repo is increasingly trustworthy for:
 ## What still needs work before it feels implementation-ready
 
 To feel less like a prototype and more like an implementable product subsystem, the repo should next improve:
-- sidecar-focused examples
-- black-box integration tests
-- API contract clarity for write/query flows
-- operational packaging of the HTTP sidecar story
-- clearer repair/backfill strategy from host DB truth
+- ANN-coupled pre-filter acceleration using the on-disk filter indexes at query time
+- production-scale workload validation (100k+ vectors with realistic update/delete patterns)
+- TLS termination and rate limiting (use a reverse proxy for now)
+- multi-tenancy / collection-level isolation beyond single collection_id
 
 ## Why this file exists
 

@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 
 from recalllayer.api.rate_limiter import SlidingWindowRateLimiter
 from recalllayer.api.recalllayer_sidecar_schemas import (
@@ -55,9 +55,9 @@ class SidecarAppConfig:
     tenants: list[TenantConfig] = field(default_factory=list)
     # Rate limiting
     rate_limit: int = 0  # 0 = disabled; N = max requests per minute per key
-    # Auto-flush scheduler
-    auto_flush_interval_sec: float = 300.0  # 0 = disabled
-    auto_flush_upsert_threshold: int = 10_000  # flush when buffer exceeds this
+    # Auto-flush scheduler (0 or None = disabled)
+    auto_flush_interval_sec: float = 0.0
+    auto_flush_upsert_threshold: int = 10_000
     # Dynamic IVF: auto-enable when live row count crosses this threshold (None = disabled)
     ivf_auto_threshold: int | None = 50_000
 
@@ -93,6 +93,21 @@ def load_sidecar_app_config_from_env() -> SidecarAppConfig:
     if raw_tenants:
         tenants = _parse_tenants(raw_tenants)
 
+    # Support both RECALLLAYER_AUTO_FLUSH_INTERVAL_SEC and the long form
+    # RECALLLAYER_AUTO_FLUSH_INTERVAL_SECONDS (documented in DEPLOYMENT.md).
+    raw_interval = (
+        os.getenv("RECALLLAYER_AUTO_FLUSH_INTERVAL_SEC")
+        or os.getenv("RECALLLAYER_AUTO_FLUSH_INTERVAL_SECONDS")
+    )
+    auto_flush_interval_sec: float = 0.0
+    if raw_interval:
+        try:
+            v = float(raw_interval)
+            if v > 0:
+                auto_flush_interval_sec = v
+        except ValueError:
+            pass
+
     return SidecarAppConfig(
         root_dir=os.getenv("RECALLLAYER_SIDECAR_ROOT_DIR", ".recalllayer_sidecar_http_db"),
         collection_id=os.getenv("RECALLLAYER_COLLECTION_ID", "recalllayer-sidecar-demo"),
@@ -102,7 +117,7 @@ def load_sidecar_app_config_from_env() -> SidecarAppConfig:
         api_key=os.getenv("RECALLLAYER_API_KEY") or None,
         tenants=tenants,
         rate_limit=int(os.getenv("RECALLLAYER_RATE_LIMIT", "0")),
-        auto_flush_interval_sec=float(os.getenv("RECALLLAYER_AUTO_FLUSH_INTERVAL_SEC", "300")),
+        auto_flush_interval_sec=auto_flush_interval_sec,
         auto_flush_upsert_threshold=int(
             os.getenv("RECALLLAYER_AUTO_FLUSH_UPSERT_THRESHOLD", "10000")
         ),
@@ -149,6 +164,68 @@ def build_sidecar_from_config(
 
 
 # ---------------------------------------------------------------------------
+# Metrics
+# ---------------------------------------------------------------------------
+
+
+class _MetricsState:
+    """Thread-safe counters for the Prometheus metrics endpoint."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.upserts_total: int = 0
+        self.deletes_total: int = 0
+        self.queries_total: int = 0
+        self.flushes_total: int = 0
+        self.auto_flushes_total: int = 0
+        self.query_latency_seconds: list[float] = []
+
+    def inc_upsert(self) -> None:
+        with self._lock:
+            self.upserts_total += 1
+
+    def inc_delete(self) -> None:
+        with self._lock:
+            self.deletes_total += 1
+
+    def inc_query(self, latency_seconds: float) -> None:
+        with self._lock:
+            self.queries_total += 1
+            self.query_latency_seconds.append(latency_seconds)
+            if len(self.query_latency_seconds) > 1000:
+                self.query_latency_seconds = self.query_latency_seconds[-1000:]
+
+    def inc_flush(self, *, auto: bool = False) -> None:
+        with self._lock:
+            self.flushes_total += 1
+            if auto:
+                self.auto_flushes_total += 1
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            latencies = list(self.query_latency_seconds)
+        latencies_sorted = sorted(latencies)
+        n = len(latencies_sorted)
+
+        def pct(p: float) -> float:
+            if not latencies_sorted:
+                return 0.0
+            idx = max(0, int(n * p) - 1)
+            return latencies_sorted[min(idx, n - 1)]
+
+        return {
+            "upserts_total": self.upserts_total,
+            "deletes_total": self.deletes_total,
+            "queries_total": self.queries_total,
+            "flushes_total": self.flushes_total,
+            "auto_flushes_total": self.auto_flushes_total,
+            "query_latency_p50_seconds": pct(0.50),
+            "query_latency_p95_seconds": pct(0.95),
+            "query_latency_p99_seconds": pct(0.99),
+        }
+
+
+# ---------------------------------------------------------------------------
 # Auto-flush background scheduler
 # ---------------------------------------------------------------------------
 
@@ -169,11 +246,13 @@ class AutoFlushScheduler:
         sidecars: dict[str, RecallLayerSidecar],
         interval_sec: float,
         upsert_threshold: int,
+        metrics: _MetricsState | None = None,
         poll_sec: float = 1.0,
     ) -> None:
         self._sidecars = sidecars
         self._interval_sec = interval_sec
         self._upsert_threshold = upsert_threshold
+        self._metrics = metrics
         self._poll_sec = poll_sec
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True, name="recalllayer-autoflush")
@@ -213,6 +292,8 @@ class AutoFlushScheduler:
                             segment_id=f"seg-auto-{counter}",
                             generation=counter,
                         )
+                        if self._metrics is not None:
+                            self._metrics.inc_flush(auto=True)
                         logger.info(
                             "AutoFlush: flushed collection=%s segment=seg-auto-%d buf_size=%d",
                             collection_id,
@@ -239,6 +320,7 @@ def create_recalllayer_sidecar_app(
     config: SidecarAppConfig | None = None,
 ) -> FastAPI:
     app_config = config or SidecarAppConfig(root_dir=root_dir)
+    metrics = _MetricsState()
 
     # ------------------------------------------------------------------
     # Multi-tenancy: build a sidecar per tenant; fall back to single sidecar
@@ -251,7 +333,6 @@ def create_recalllayer_sidecar_app(
             sc = build_sidecar_from_config(app_config, collection_id=tenant.collection_id)
             tenant_sidecars[tenant.api_key] = sc
             collection_sidecars[tenant.collection_id] = sc
-        # The "default" sidecar for health/status endpoints is the first tenant's
         default_sidecar = next(iter(tenant_sidecars.values()))
     else:
         default_sidecar = sidecar or build_sidecar_from_config(app_config)
@@ -278,6 +359,7 @@ def create_recalllayer_sidecar_app(
             sidecars=collection_sidecars,
             interval_sec=app_config.auto_flush_interval_sec,
             upsert_threshold=app_config.auto_flush_upsert_threshold,
+            metrics=metrics,
         )
 
     @asynccontextmanager
@@ -289,6 +371,9 @@ def create_recalllayer_sidecar_app(
             scheduler.stop()
 
     app = FastAPI(title="RecallLayer Sidecar", lifespan=lifespan)
+    app.state.sidecar = default_sidecar
+    app.state.sidecar_config = app_config
+    app.state.tenant_sidecars = tenant_sidecars
 
     # ------------------------------------------------------------------
     # Auth + rate-limit dependency
@@ -296,7 +381,6 @@ def create_recalllayer_sidecar_app(
 
     def _resolve_sidecar(x_api_key: str | None) -> RecallLayerSidecar:
         """Validate API key and return the sidecar for the caller's tenant."""
-        # Multi-tenant mode
         if app_config.tenants:
             if x_api_key is None or x_api_key not in tenant_sidecars:
                 raise HTTPException(
@@ -305,7 +389,6 @@ def create_recalllayer_sidecar_app(
                 )
             return tenant_sidecars[x_api_key]
 
-        # Single-tenant (legacy) mode
         if app_config.api_key is not None and x_api_key != app_config.api_key:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -316,7 +399,7 @@ def create_recalllayer_sidecar_app(
     def require_auth(request: Request, x_api_key: AuthHeader = None) -> RecallLayerSidecar:
         sc = _resolve_sidecar(x_api_key)
         if rate_limiter is not None:
-            identifier = x_api_key or request.client.host if request.client else "anonymous"
+            identifier = x_api_key or (request.client.host if request.client else "anonymous")
             allowed, retry_after = rate_limiter.check(identifier)
             if not allowed:
                 raise HTTPException(
@@ -326,7 +409,6 @@ def create_recalllayer_sidecar_app(
                 )
         return sc
 
-    # Unauthenticated check for health endpoints
     def require_api_key_no_tenant(x_api_key: AuthHeader = None) -> None:
         if app_config.api_key is None and not app_config.tenants:
             return
@@ -396,6 +478,7 @@ def create_recalllayer_sidecar_app(
             region=request.region,
             status=request.status,
         )
+        metrics.inc_upsert()
         return {
             "document_id": document_id,
             "vector_id": vector_id,
@@ -424,6 +507,7 @@ def create_recalllayer_sidecar_app(
         sc: RecallLayerSidecar = Depends(require_auth),
     ) -> dict[str, Any]:
         vector_id = sc.delete_document(document_id)
+        metrics.inc_delete()
         return {"document_id": document_id, "vector_id": vector_id, "deleted": True}
 
     @app.post("/v1/query", response_model=SidecarSearchResponse)
@@ -431,11 +515,13 @@ def create_recalllayer_sidecar_app(
         request: SidecarQueryRequest,
         sc: RecallLayerSidecar = Depends(require_auth),
     ) -> SidecarSearchResponse:
+        t0 = time.monotonic()
         result = sc.search(
             request.query_text,
             top_k=request.top_k,
             region=request.region,
         )
+        metrics.inc_query(latency_seconds=time.monotonic() - t0)
         return SidecarSearchResponse(**result)
 
     @app.post("/v1/repair")
@@ -460,6 +546,7 @@ def create_recalllayer_sidecar_app(
         sc: RecallLayerSidecar = Depends(require_auth),
     ) -> dict[str, Any]:
         sc.flush(segment_id=request.segment_id, generation=request.generation)
+        metrics.inc_flush()
         shard_manifest, _segment_manifests = sc.recall_layer.load_manifest_set()
         return {
             "active_segment_ids": (
@@ -480,9 +567,94 @@ def create_recalllayer_sidecar_app(
         )
         return {"compacted": result is not None, "result": result}
 
-    app.state.sidecar = default_sidecar
-    app.state.sidecar_config = app_config
-    app.state.tenant_sidecars = tenant_sidecars
+    @app.get("/metrics")
+    def prometheus_metrics() -> Response:
+        """Return collection and request counters in Prometheus text format."""
+        col_stats = default_sidecar.recall_layer.collection_stats()
+        req_snap = metrics.snapshot()
+
+        def g(name: str, help_text: str, value: float | int) -> list[str]:
+            return [
+                f"# HELP {name} {help_text}",
+                f"# TYPE {name} gauge",
+                f"{name} {value}",
+            ]
+
+        def c(name: str, help_text: str, value: float | int) -> list[str]:
+            return [
+                f"# HELP {name} {help_text}",
+                f"# TYPE {name} counter",
+                f"{name}_total {value}",
+            ]
+
+        lines: list[str] = []
+        lines += g(
+            "recalllayer_segment_count",
+            "Number of active sealed segments.",
+            col_stats["total_segment_count"],
+        )
+        lines += g(
+            "recalllayer_mutable_buffer_size",
+            "Number of un-flushed vectors in the mutable buffer.",
+            col_stats["mutable_buffer_size"],
+        )
+        lines += g(
+            "recalllayer_delete_ratio",
+            "Fraction of sealed rows that are tombstoned (0..1).",
+            col_stats["total_delete_ratio"],
+        )
+        lines += g(
+            "recalllayer_storage_bytes",
+            "Total bytes used by sealed segment files on disk.",
+            col_stats["storage_bytes"],
+        )
+        lines += g(
+            "recalllayer_shard_count",
+            "Number of shards known to the collection.",
+            col_stats["shard_count"],
+        )
+        lines += c(
+            "recalllayer_upserts",
+            "Total document upsert calls since startup.",
+            req_snap["upserts_total"],
+        )
+        lines += c(
+            "recalllayer_deletes",
+            "Total document delete calls since startup.",
+            req_snap["deletes_total"],
+        )
+        lines += c(
+            "recalllayer_queries",
+            "Total query calls since startup.",
+            req_snap["queries_total"],
+        )
+        lines += c(
+            "recalllayer_flushes",
+            "Total flush calls since startup (manual + auto).",
+            req_snap["flushes_total"],
+        )
+        lines += c(
+            "recalllayer_auto_flushes",
+            "Total automatic background flush calls since startup.",
+            req_snap["auto_flushes_total"],
+        )
+        lines += g(
+            "recalllayer_query_latency_p50_seconds",
+            "p50 query latency over last 1000 requests.",
+            req_snap["query_latency_p50_seconds"],
+        )
+        lines += g(
+            "recalllayer_query_latency_p95_seconds",
+            "p95 query latency over last 1000 requests.",
+            req_snap["query_latency_p95_seconds"],
+        )
+        lines += g(
+            "recalllayer_query_latency_p99_seconds",
+            "p99 query latency over last 1000 requests.",
+            req_snap["query_latency_p99_seconds"],
+        )
+        lines.append("")
+        return Response(content="\n".join(lines), media_type="text/plain; version=0.0.4")
 
     return app
 
