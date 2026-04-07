@@ -23,10 +23,14 @@ from __future__ import annotations
 import argparse
 import os
 import statistics
+import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import numpy as np
 
@@ -318,6 +322,39 @@ def main() -> None:
             results.append(result)
 
     print_summary(results)
+    _write_report(results, args)
+
+
+def _write_report(results: list[PhaseResult], args: argparse.Namespace) -> None:
+    report_path = Path(__file__).parent.parent / "reports" / "scale_benchmark.md"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+
+    lines = [
+        "# Scale Benchmark",
+        "",
+        f"Scales: {', '.join(args.scale)}  |  dim={args.dim}  |  top_k={args.top_k}  "
+        f"|  IVF={'enabled' if args.ivf else 'disabled'}",
+        "",
+        f"| Scale | vec/s | p50 ms | p95 ms | p99 ms | Recall@{results[0].top_k if results else 10} "
+        f"| Segs | WAL peak |",
+        "|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for r in results:
+        lines.append(
+            f"| {r.phase} | {r.insert_throughput:,.0f} | {r.p50_ms:.1f} | {r.p95_ms:.1f} | "
+            f"{r.p99_ms:.1f} | {r.recall_at_k:.3f} | {r.segment_count} | {r.wal_peak_lines} |"
+        )
+    lines += [
+        "",
+        "---",
+        "",
+        "- Query latency measured on warm segment cache (after one warmup query).",
+        "- Recall@k computed vs exact-hybrid baseline on first 10 queries.",
+        "- WAL peak = max WAL lines seen between auto-flush cycles.",
+        "",
+    ]
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"\nReport written to {report_path}")
 
 
 if __name__ == "__main__":

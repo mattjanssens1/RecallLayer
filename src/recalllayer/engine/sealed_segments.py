@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 from dataclasses import dataclass
@@ -10,6 +11,8 @@ from typing import Iterable, Iterator
 import numpy as np
 
 from recalllayer.engine.mutable_buffer import MutableBufferEntry
+from recalllayer.filters.filter_index_store import FilterIndexStore
+from recalllayer.filters.indexes import MetadataRow
 from recalllayer.model.manifest import SegmentManifest, SegmentState
 from recalllayer.quantization.base import EncodedVector, Quantizer
 from recalllayer.retrieval.base import IndexedVector
@@ -59,6 +62,7 @@ class SegmentBuilder:
         self.root_dir = Path(root_dir)
         self.root_dir.mkdir(parents=True, exist_ok=True)
         self.quantizer = quantizer
+        self._filter_index_store = FilterIndexStore()
 
     def build(
         self,
@@ -138,6 +142,8 @@ class SegmentBuilder:
                 min_write_epoch = epoch if min_write_epoch is None else min(min_write_epoch, epoch)
                 max_write_epoch = epoch if max_write_epoch is None else max(max_write_epoch, epoch)
 
+        content_sha256 = hashlib.sha256(segment_path.read_bytes()).hexdigest()
+
         manifest = SegmentManifest(
             segment_id=segment_id,
             collection_id=collection_id,
@@ -151,8 +157,18 @@ class SegmentBuilder:
             quantizer_version=quantizer_version,
             min_write_epoch=min_write_epoch or 0,
             max_write_epoch=max_write_epoch or 0,
+            content_sha256=content_sha256,
         )
         manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+
+        # Write companion filter index for fast pre-filter on sealed segment queries.
+        filter_rows = [
+            MetadataRow(vector_id=entry.record.vector_id, metadata=entry.metadata)
+            for entry in entries_list
+            if not entry.record.is_deleted and entry.embedding is not None
+        ]
+        self._filter_index_store.save(segment_path, segment_id, filter_rows)
+
         return manifest, LocalSegmentPaths(segment_path=segment_path, manifest_path=manifest_path)
 
     def _build_clustered(
@@ -295,6 +311,8 @@ class SegmentBuilder:
             handle.write(header_line)
             handle.write(row_bytes)
 
+        content_sha256 = hashlib.sha256(segment_path.read_bytes()).hexdigest()
+
         manifest = SegmentManifest(
             segment_id=segment_id,
             collection_id=collection_id,
@@ -308,8 +326,17 @@ class SegmentBuilder:
             quantizer_version=quantizer_version,
             min_write_epoch=min_write_epoch or 0,
             max_write_epoch=max_write_epoch or 0,
+            content_sha256=content_sha256,
         )
         manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+
+        # Write companion filter index (live vectors only; tombstones excluded).
+        filter_rows = [
+            MetadataRow(vector_id=e.record.vector_id, metadata=e.metadata)
+            for e, _codes, _scale in live
+        ]
+        self._filter_index_store.save(segment_path, segment_id, filter_rows)
+
         return manifest, LocalSegmentPaths(segment_path=segment_path, manifest_path=manifest_path)
 
 

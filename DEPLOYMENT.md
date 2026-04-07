@@ -56,6 +56,7 @@ See `config/config.yaml.example` for a full annotated list.  Key variables:
 | `RECALLLAYER_POSTGRES_DSN` | _(none)_ | PostgreSQL DSN (required when `HOST_REPOSITORY=postgres`) |
 | `RECALLLAYER_API_KEY` | _(none)_ | Enable `X-Api-Key` auth if non-empty |
 | `RECALLLAYER_PORT` | `8765` | HTTP port |
+| `RECALLLAYER_AUTO_FLUSH_INTERVAL_SECONDS` | _(none)_ | If set, the sidecar flushes the mutable buffer automatically on this interval (seconds). Useful when the application does not call `POST /v1/flush` itself. |
 
 ## Operational runbook
 
@@ -71,7 +72,16 @@ curl -X POST http://localhost:8765/v1/repair
 
 ### Flush (sealing the mutable buffer)
 
-Flushes are caller-triggered.  Recommended triggers:
+Flushes can be triggered automatically or by the caller.
+
+**Automatic flushing** — set `RECALLLAYER_AUTO_FLUSH_INTERVAL_SECONDS` and the sidecar
+will flush the mutable buffer on that interval without any application-side plumbing:
+
+```bash
+export RECALLLAYER_AUTO_FLUSH_INTERVAL_SECONDS=300  # flush every 5 minutes
+```
+
+**Caller-triggered** — recommended when you want deterministic flush boundaries:
 - After every N upserts (e.g. 10 000)
 - On a periodic schedule (e.g. every 5 minutes)
 
@@ -115,6 +125,38 @@ Key fields in the response:
 - `mutable_buffer_size` — number of un-flushed vectors
 - `delete_ratio` — fraction of rows that are tombstoned (trigger compaction above 0.2)
 - `replay_from_write_epoch` — WAL replay cutoff (advances after each flush/compaction)
+
+### Prometheus metrics
+
+RecallLayer exposes a Prometheus-compatible metrics endpoint with no external dependency:
+
+```bash
+curl http://localhost:8765/metrics
+```
+
+Metrics exposed:
+- `recalllayer_segment_count` — active sealed segments
+- `recalllayer_mutable_buffer_size` — un-flushed vectors
+- `recalllayer_delete_ratio` — tombstone fraction (0..1)
+- `recalllayer_storage_bytes` — total segment storage on disk
+- `recalllayer_upserts_total`, `recalllayer_deletes_total`, `recalllayer_queries_total`
+- `recalllayer_flushes_total`, `recalllayer_auto_flushes_total`
+- `recalllayer_query_latency_p50_seconds`, `_p95_seconds`, `_p99_seconds`
+
+### Segment integrity check
+
+To verify that sealed segment files match the checksums recorded in their manifests:
+
+```python
+from recalllayer.engine.local_db import LocalVectorDatabase
+db = LocalVectorDatabase(collection_id="...", root_dir="...")
+errors = db.verify_segment_integrity()
+if errors:
+    print("Integrity errors:", errors)
+```
+
+An empty list means all checksums passed. Segments written before this feature have no
+checksum and are silently skipped.
 
 ### Deleting a document
 

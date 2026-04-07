@@ -39,6 +39,7 @@ class SegmentManifest(BaseModel):
     activated_at: datetime | None = None
     min_write_epoch: int = Field(default=0, ge=0)
     max_write_epoch: int = Field(default=0, ge=0)
+    content_sha256: str | None = None
 
 
 class ShardManifest(BaseModel):
