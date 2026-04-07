@@ -308,6 +308,7 @@ class RecallLayerSidecar:
         host_db: HostDocumentRepository,
         root_dir: str | Path,
         collection_id: str = "recalllayer-sidecar-demo",
+        ivf_auto_threshold: int | None = 50_000,
     ) -> None:
         self.host_db = host_db
         self.root_dir = Path(root_dir)
@@ -315,6 +316,7 @@ class RecallLayerSidecar:
         self.recall_layer = ShowcaseScoredDatabase(
             collection_id=collection_id,
             root_dir=self.root_dir,
+            ivf_auto_threshold=ivf_auto_threshold,
         )
 
     def upsert_and_sync_document(

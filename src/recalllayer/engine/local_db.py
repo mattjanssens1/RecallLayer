@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,6 +41,7 @@ class LocalVectorDatabase:
         enable_ivf: bool = False,
         ivf_n_clusters: int = 8,
         ivf_probe_k: int = 2,
+        ivf_auto_threshold: int | None = 50_000,
     ) -> None:
         self.collection_id = collection_id
         self.root_dir = Path(root_dir)
@@ -51,6 +53,7 @@ class LocalVectorDatabase:
         self.enable_ivf = enable_ivf
         self.ivf_n_clusters = ivf_n_clusters
         self.ivf_probe_k = ivf_probe_k
+        self.ivf_auto_threshold = ivf_auto_threshold
 
         self.mutable_buffer = MutableBuffer(collection_id=collection_id)
         self.write_log = WriteLog(
@@ -210,6 +213,45 @@ class LocalVectorDatabase:
             )
         ]
 
+    def _resolve_ivf_clusters(self, *, shard_id: str) -> int | None:
+        """Return the IVF cluster count to use for the next flush, or None to disable IVF.
+
+        When *ivf_auto_threshold* is set, IVF is automatically enabled once the
+        total live row count (sealed + mutable) crosses the threshold.  The cluster
+        count is computed as ``max(8, sqrt(total_rows))`` — the ANNS rule of thumb
+        that keeps each bucket at O(sqrt(N)) vectors.  Manual ``enable_ivf`` always
+        wins when set to True.
+        """
+        if self.enable_ivf:
+            return self.ivf_n_clusters
+
+        if self.ivf_auto_threshold is None:
+            return None
+
+        # Estimate total corpus size for this shard
+        shard_manifest = self.manifest_store.load(
+            collection_id=self.collection_id, shard_id=shard_id
+        )
+        sealed_rows = 0
+        if shard_manifest is not None:
+            active_ids = set(shard_manifest.active_segment_ids)
+            seg_manifests = self.segment_manifest_store.list_manifests(
+                collection_id=self.collection_id, shard_id=shard_id
+            )
+            sealed_rows = sum(
+                m.live_row_count for m in seg_manifests if m.segment_id in active_ids
+            )
+        buf = self._get_mutable_buffer(shard_id)
+        mutable_rows = len(buf.live_entries())
+        total_rows = sealed_rows + mutable_rows
+
+        if total_rows < self.ivf_auto_threshold:
+            return None
+
+        # sqrt(N) clusters, clamped to [8, 4096]
+        n_clusters = max(8, min(4096, int(math.isqrt(total_rows))))
+        return n_clusters
+
     def flush_mutable(
         self,
         *,
@@ -223,6 +265,7 @@ class LocalVectorDatabase:
         if not entries:
             return None
 
+        n_ivf_clusters = self._resolve_ivf_clusters(shard_id=shard_id)
         segment_manifest, _paths = self.segment_builder.build(
             collection_id=self.collection_id,
             shard_id=shard_id,
@@ -231,7 +274,7 @@ class LocalVectorDatabase:
             embedding_version=self.embedding_version,
             quantizer_version=self.quantizer_version,
             entries=entries,
-            n_ivf_clusters=self.ivf_n_clusters if self.enable_ivf else None,
+            n_ivf_clusters=n_ivf_clusters,
         )
         self.segment_cache.invalidate(_paths.segment_path)
         self.decoded_segment_cache.invalidate(_paths.segment_path)
